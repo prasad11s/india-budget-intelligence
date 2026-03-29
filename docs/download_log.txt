@@ -1,0 +1,227 @@
+Total links to process: 3636
+
+
+=== 2025-2026 ===
+  EXISTS: Key_to_Budget_Document_2025.pdf
+  EXISTS: allafs.pdf
+  EXISTS: allafs.xlsx
+  EXISTS: budget_at_a_glance.pdf
+  EXISTS: allsbe.xls
+  EXISTS: alldg.pdf
+  EXISTS: alldg.xlsx
+
+=== 2024-2025 ===
+  EXISTS: Key_to_Budget_Document_2024.pdf
+  EXISTS: allafs.pdf
+  EXISTS: allafs.xlsx
+  EXISTS: budget_at_a_glance.pdf
+  EXISTS: allsbe.xls
+  EXISTS: alldg.pdf
+  EXISTS: alldg.xlsx
+
+=== 2024-2025(I) ===
+  EXISTS: Key_to_Budget_Document_2024.pdf
+  EXISTS: allafs.pdf
+  EXISTS: budget_at_a_glance.pdf
+  EXISTS: allsbe.xlsx
+  EXISTS: alldg.pdf
+
+=== 2023-2024 ===
+  EXISTS: Key_to_Budget_Document_2023.pdf
+  EXISTS: allafs.pdf
+  EXISTS: budget_at_a_glance.pdf
+  EXISTS: allsbe.xls
+  EXISTS: alldg.pdf
+
+=== 2022-2023 ===
+  EXISTS: Key_to_Budget_Document_2022.pdf
+  EXISTS: allafs.pdf
+  EXISTS: budget_at_a_glance.pdf
+  EXISTS: alldg.pdf
+
+=== 2021-2022 ===
+  EXISTS: Key_to_Budget_Document_2021.pdf
+  EXISTS: allafs.pdf
+  EXISTS: allafs.xlsx
+  EXISTS: budget_at_a_glance.pdf
+  EXISTS: alldg.pdf
+
+=== 2019-2020(I) ===
+
+=== 2018-2019 ===
+
+=== 2017-2018 ===
+
+=== 2016-2017 ===
+
+=== 2015-2016 ===
+
+=== 2014-2015 ===
+
+=== 2014-2015(I) ===
+
+=== 2013-2014 ===
+
+=== 2012-2013 ===
+
+=== 2011-2012 ===
+
+=== 2006-2007 ===
+
+=== 1947-1995 (Budget Documents since 1947 to 1995) ===
+  FAILED: BUDGET-1947-48.pdf — status 404
+  FAILED: BUDGET-1948-49.pdf — status 404
+  FAILED: BUDGET-1949-50.pdf — status 404
+  FAILED: BUDGET_1950-51.pdf — status 404
+  FAILED: BUDGETPAPERS-1952-53.pdf — status 404
+  FAILED: BUDGET-195354.pdf — status 404
+
+=== 1947-48 ===
+  OK: BUDGET-1947-48.pdf (96611 KB)
+
+=== 1948-49 ===
+  OK: BUDGET-1948-49.pdf (34016 KB)
+
+=== 1949-50 ===
+  OK: BUDGET-1949-50.pdf (20202 KB)
+
+=== 1950-51 ===
+  OK: BUDGET_1950-51.pdf (30058 KB)
+
+=== 1952-53 ===
+  OK: BUDGETPAPERS-1952-53.pdf (35930 KB)
+
+=== 1953-54 ===
+  OK: BUDGET-195354.pdf (52968 KB)
+
+=== 1954-55 ===
+  OK: BUDGET1954-55.pdf (56863 KB)
+
+=== 1955-56 ===
+  OK: BUDGET1955-56.pdf (79356 KB)
+
+=== 1956-57 ===
+  OK: BUDGET1956-57.pdf (80006 KB)
+
+=== 1957-58 ===
+  OK: BUDGET1957-58.pdf (74057 KB)
+
+=== 1958-59 ===
+  OK: BUDGET1958-59.pdf (70331 KB)
+
+=== 1959-60 ===
+  OK: BUDGET1959-60.pdf (48559 KB)
+
+=== 1960-61 ===
+  OK: BUDGET1960-61.pdf (37901 KB)
+
+=== 1961-62 ===
+  OK: BUDGET1961-62.pdf (66073 KB)
+
+=== 1962-63 ===
+  OK: BUDGET1962-63.pdf (28766 KB)
+
+=== 1963-64 ===
+  OK: BUDGET1963-64.pdf (68257 KB)
+
+=== 1964-65 ===
+  OK: BUDGET1964-65.pdf (73520 KB)
+
+=== 1966-67 ===
+  OK: BUDGET1966-67.pdf (61097 KB)
+
+=== 1967-68 ===
+  OK: BUDGET1967-68.pdf (87343 KB)
+
+=== 1969-70 ===
+  OK: BUDGET1969-70.pdf (52942 KB)
+
+=== 1970-71 ===
+  OK: CENTRAC_BUDGET-1970-71.pdf (9588 KB)
+  OK: CENTRALBUDGET-1970-71.pdf (6314 KB)
+
+=== 1971-72 ===
+  OK: BUDGET-1971-72.pdf (77958 KB)
+
+=== 1972-73 ===
+  OK: BUDGET-1972-73.pdf (69114 KB)
+
+=== 1973-74 ===
+  OK: BUDGET-1973-74.pdf (80990 KB)
+
+=== 1974-75 ===
+  OK: BUDGET1974-75.pdf (89980 KB)
+
+=== 1975-76 ===
+  OK: BUDGET1975-76.pdf (92532 KB)
+
+=== 1977-78 ===
+  OK: BUDGET1977-78-INTERIM.pdf (22857 KB)
+  OK: BUDGET1977-78-REGULAR.pdf (84465 KB)
+
+=== 1978-79 ===
+  OK: BUDGET1978-79.pdf (99783 KB)
+
+=== 1979-80 ===
+  OK: BUDGET1979-80.pdf (109266 KB)
+
+=== 1980-81 ===
+  OK: BUDGET1980-81-INTERIM.pdf (28180 KB)
+  OK: 1980-81REGULAR.pdf (103391 KB)
+
+=== 1981-82 ===
+  OK: BUDGETVOLMEFOR-1981-82.pdf (113699 KB)
+
+=== 1982-83 ===
+  OK: BUDGET_VOLUME_FOR1982-83.pdf (130367 KB)
+
+=== 1983-84 ===
+  OK: BUDGETVOLUMEFOR-1983-84.pdf (122789 KB)
+
+=== 1984-85 ===
+  OK: BUDGETVOLUMEFOR1984-85.pdf (6594 KB)
+
+=== 1985-86 ===
+  OK: CENTRAL-BUDGET-1985-86-I.pdf (31043 KB)
+
+=== 1986-87 ===
+  OK: CENTRALBUDGET-1986-87.pdf (59639 KB)
+
+=== 1988-89 ===
+  OK: BUDGET1988-89.pdf (163650 KB)
+
+=== 1990-91 ===
+  OK: UnionBudget1990-91.pdf (155530 KB)
+
+=== 1991-92 ===
+  OK: UnionBudget-Interim-1991-92.pdf (352708 KB)
+
+=== CENTRAL-BIDGET-91-92.pdf ===
+  OK: CENTRAL-BIDGET-91-92.pdf (46102 KB)
+
+=== 1992-92 ===
+  OK: CENTRAL-BUDGET-1992-92-part2.pdf (39260 KB)
+
+=== 1992-93 ===
+  OK: UnionBudget1992-93.pdf (155446 KB)
+
+=== 1993-94 ===
+  OK: UnionBudget1993-94.pdf (161198 KB)
+
+=== 1994-95 ===
+  OK: UnionBudget1994-95.pdf (100323 KB)
+
+=== 1995-96 ===
+  OK: UnionBudget1995-96.pdf (172407 KB)
+
+=== Download Complete ===
+Downloaded: 81
+Skipped:    3549
+Failed:     6
+Failed URLs:
+  https://www.indiabudget.gov.in/files/budget_division_documents/BUDGET-1947-48.pdf
+  https://www.indiabudget.gov.in/files/budget_division_documents/BUDGET-1948-49.pdf
+  https://www.indiabudget.gov.in/files/budget_division_documents/BUDGET-1949-50.pdf
+  https://www.indiabudget.gov.in/files/budget_division_documents/BUDGET_1950-51.pdf
+  https://www.indiabudget.gov.in/files/budget_division_documents/BUDGETPAPERS-1952-53.pdf
+  https://www.indiabudget.gov.in/files/budget_division_documents/BUDGET-195354.pdf
