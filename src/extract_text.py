@@ -22,7 +22,16 @@ def extract_pdf(pdf_path):
 def get_metadata(pdf_path, doc_type):
     parts = pdf_path.replace("\\", "/").split("/")
     filename = parts[-1]
-    year = parts[-2] if len(parts) > 2 else "unknown"
+    raw_idx = parts.index("raw")
+    after_type = parts[raw_idx + 2:]
+    
+    if doc_type == "budget_speeches":
+        year = filename.replace("bs", "").replace(".pdf", "")
+    elif len(after_type) > 1:
+        year = parts[raw_idx + 2]
+    else:
+        year = "unknown"
+    
     return {
         "year": year,
         "doc_type": doc_type,
