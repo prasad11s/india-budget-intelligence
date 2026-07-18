@@ -124,3 +124,30 @@
 - Check text quality across different decades (1947 vs 1990 vs 2020)
 - Handle Excel files with pandas
 - Output: structured JSON per document with metadata (year, doc_type, page, text)
+
+## March 31, 2026 - Session 5
+
+### What was done
+- Created data/processed/ folder structure (budget_speeches, economic_surveys, budget_documents)
+- Wrote src/extract_text.py — text extraction pipeline using pdfplumber
+- Pipeline design:
+  - Scans all subfolders under data/raw/ automatically (os.walk)
+  - Extracts text page by page with page numbers preserved
+  - Saves one JSON per PDF with metadata (year, doc_type, filename, source, pages)
+  - Skip logic — safe to rerun, only processes new files
+- Debugged and fixed year parsing:
+  - Budget speeches: year parsed from filename (bs2023_24.pdf → 2023_24)
+  - Budget documents/surveys: year parsed from folder structure
+- Extraction results:
+  - budget_speeches: 92/92 extracted, 0 failed
+  - economic_surveys: 544/546 extracted, 2 unknown (likely scanned)
+  - budget_documents: 61/72 extracted, 11 failed (password protected PDFs)
+
+### Known issues
+- 11 budget document PDFs (allafs.pdf, alldg.pdf from 2021-2026) are password protected — skipped for now
+- Budget speeches year field is filename-based (2023_24 format) not fiscal year format (2023-24) — acceptable for now, can normalize in chunking phase
+
+### Next session plan
+- Phase 3: Chunking + metadata
+- Split each JSON into ~500 word overlapping chunks
+- Each chunk carries year, doc_type, source, page number as metadata
