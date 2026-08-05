@@ -1,8 +1,13 @@
 import os
 import json
 import glob
+import configparser
 import chromadb
 from openai import OpenAI
+
+config = configparser.ConfigParser()
+config.read("docs/config.ini")
+openai_client = OpenAI(api_key=config["openai"]["api_key"])
 
 EMBEDDING_MODEL = "text-embedding-3-large"
 BATCH_SIZE = 100
@@ -12,7 +17,6 @@ CHUNK_FOLDERS = [
     "data/chunks/budget_documents",
 ]
 
-openai_client = OpenAI()
 chroma_client = chromadb.PersistentClient(path="data/chroma_db")
 collection = chroma_client.get_or_create_collection("budget_intelligence")
 
@@ -62,13 +66,14 @@ for folder in CHUNK_FOLDERS:
         for chunk in chunks:
             text, meta = normalize_chunk(chunk)
             chunk_id = meta["chunk_id"]
-            if chunk_id in existing_ids:
-                continue
             if is_garbled(text):
+                continue
+            unique_id = f"{meta['year']}_{chunk_id}"
+            if unique_id in existing_ids:
                 continue
             texts.append(text)
             metadatas.append(meta)
-            ids.append(chunk_id)
+            ids.append(unique_id)
 
 print(f"New chunks to embed: {len(texts)}")
 
