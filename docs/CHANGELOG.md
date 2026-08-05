@@ -151,3 +151,74 @@
 - Phase 3: Chunking + metadata
 - Split each JSON into ~500 word overlapping chunks
 - Each chunk carries year, doc_type, source, page number as metadata
+
+
+
+## August 5, 2026 - Session 6
+
+### What was done
+- Fixed .gitignore: removed corrupted NUL byte lines left over from a UTF-16
+  save in the config.ini exclusion block
+- Added *_log.txt and structure.txt to .gitignore, since both are
+  regenerated output rather than authored source
+- Confirmed docs/config.ini (holding the OpenAI API key) was never
+  committed to git history, using git log --all --full-history, so no key
+  rotation was needed
+- Reorganized src/ ahead of making the repository public, separating the
+  live rerunnable pipeline from one time diagnostic and prototype scripts
+  - Kept in src/ root: 1.1 through 1.7 (data collection), 2.1
+    (extraction), 3.1 through 3.3 (chunking), 4.3 (embedding), 4.4 and 4.5
+    (ChromaDB inspection, kept since both run fast and add value), 4.6
+    through 4.8 (duplicate cleanup, documented one time fix), 5.6 (the
+    real RAG query pipeline, matching the Phase 5 description in this
+    changelog), 5.8 (coverage check)
+  - Moved to src/archive/: superseded or single use diagnostic scripts
+    from Phases 1, 2, 4, and 5, along with two scripts that had been
+    created outside src/ by mistake (check_1984_file.py,
+    cleanup_broken_processed.py)
+  - Deleted outright, not archived: 1.10_check_pipeline_stages.py and
+    1.12_find_unembedded_years.py, since both were superseded by corrected
+    versions (1.11, 1.13) that fixed real bugs rather than simply being
+    older iterations
+- While reviewing src/2.1_extract_text.py and src/4.3_load_chromadb.py for
+  the reorganization, found that both already contained real, working
+  changes that had never been committed
+  - 2.1_extract_text.py: added the OCR fallback path (fitz plus
+    pytesseract plus PIL), with a MIN_CHARS_BEFORE_OCR threshold of 30
+    characters, triggering OCR only on pages where direct extraction
+    returns too little text
+  - 4.3_load_chromadb.py: fixed a chunk ID collision bug. Chunk IDs were
+    previously taken directly from each chunk's filename based chunk_id,
+    which is not unique, since generic filenames such as echap-01.pdf
+    repeat across many different survey years. IDs are now prefixed with
+    the year before being written to ChromaDB, preventing one year's
+    chunk from silently overwriting another year's chunk with the same
+    filename. Also moved OpenAI client setup to read the API key from
+    docs/config.ini through configparser, matching the pattern used
+    elsewhere in the pipeline
+
+### Decisions made
+- Committed the folder reorganization and the two real pipeline fixes as
+  two separate commits, rather than one combined commit, so that git
+  history accurately distinguishes organizational changes from functional
+  changes
+- src/dev/ created but left empty for now, since nothing is currently in
+  active development as distinct from finished pipeline code or archived
+  history
+- Archived scripts are committed to GitHub rather than gitignored, since
+  they document real debugging work, such as the OCR and font encoding
+  investigation and the embedding model comparison, consistent with the
+  earlier decision to keep 4.6 through 4.8 as a documented fix rather than
+  deleting them
+
+### Known gaps and notes for later
+- 5.6_run_golden_set.py currently loops over a fixed set of ten questions.
+  Before it can serve a live interface, the retrieval, prompt building,
+  and generation logic need to be pulled out into a callable function
+- 3.1_chunk_budget_documents.py and 3.2_chunk_economic_surveys.py are
+  currently identical except for their input and output paths, a
+  candidate for merging later, not done in this session
+
+### Next session plan
+- Resume Phase 6 planning, the structured extraction fix for the numeric
+  year misattribution issue identified during Phase 5 evaluation
