@@ -52,7 +52,8 @@ def get_metadata(pdf_path, doc_type):
     after_type = parts[raw_idx + 2:]
 
     if doc_type == "budget_speeches":
-        year = filename.replace("bs", "").replace(".pdf", "")
+        name_no_ext, _ = os.path.splitext(filename)
+        year = name_no_ext.replace("bs", "").replace("_", "")
     elif len(after_type) > 1:
         year = parts[raw_idx + 2]
     else:
@@ -86,7 +87,8 @@ def process_folder(doc_type):
 
     for pdf_path in pdf_files:
         rel_path = os.path.relpath(pdf_path, raw_folder)
-        out_name = rel_path.replace("\\", "_").replace("/", "_").replace(".pdf", ".json")
+        rel_path_no_ext, _ = os.path.splitext(rel_path)
+        out_name = rel_path_no_ext.replace("\\", "_").replace("/", "_") + ".json"
         out_path = os.path.join(processed_folder, out_name)
 
         if already_processed(out_path):
