@@ -222,3 +222,38 @@
 ### Next session plan
 - Resume Phase 6 planning, the structured extraction fix for the numeric
   year misattribution issue identified during Phase 5 evaluation
+
+
+## August 6, 2026 - Session 7
+
+### What was done
+- Ran empty-chunk check across all 3 doc types. Only real gap: the
+  already-known 1984-85 corrupted PDF
+- Found and fixed 2 bugs in 2.1_extract_text.py: case-sensitive .pdf
+  replace (hid 2 survey files under wrong extension), underscore not
+  stripped from newest budget speech years. Re-extracted + re-chunked
+  the 6 affected files
+- Found 1991-92 budget doc split across two badly-named folders
+  (CENTRAL-BIDGET-91-92.pdf, 1992-92), confirmed via content, merged and
+  fixed
+- Checked download CSVs vs raw folder. demands_for_grants and
+  expenditure_budget are mostly never-downloaded (2333/1237 missing) —
+  deferring these, not core to RAG scope
+- Built year_checklist.csv, one row per fiscal year, yes/no + real link
+  for speech/budget doc/survey
+- Found new gap: economic surveys 1997-98 to 2008-09 have no processed
+  files at all, not previously documented
+- 03_rerun_pipeline_verify.md is stale (written for an old, already-
+  resolved coverage problem), ignored it
+
+### Decisions made
+- demands_for_grants / expenditure_budget: deliberate deferral, not a gap
+- Trusting code + actual files over old changelog/task doc claims from
+  now on, found stale info twice this session
+
+### Known gaps / next session
+- ChromaDB still has stale entries for the 6 fixed files + 2 budget docs
+- 1997-2008 survey gap not fixed yet, needs scraper-level look
+- known_data_gaps.md still not written to disk
+- year_checklist.csv has a minor blank-cell display bug
+- Resume Phase 6 structured extraction after this
