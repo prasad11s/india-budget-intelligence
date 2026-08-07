@@ -257,3 +257,9 @@
 - known_data_gaps.md still not written to disk
 - year_checklist.csv has a minor blank-cell display bug
 - Resume Phase 6 structured extraction after this
+
+
+## August 7, 2026 - Session 8
+
+
+Paused main pipeline work. Starting src2.0 sandbox: single-document (2026-27 speech) vertical-slice validation of chunking + embedding before scaling. Rationale: needed to isolate learning/debugging from the 92-doc pipeline's complexity.
