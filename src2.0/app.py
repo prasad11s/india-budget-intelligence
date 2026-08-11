@@ -1,25 +1,31 @@
-__import__("pysqlite3")
-import sys
-sys.modules["sqlite3"] = sys.modules.pop("pysqlite3")
+try:
+    __import__("pysqlite3")
+    import sys
+    sys.modules["sqlite3"] = sys.modules.pop("pysqlite3")
+except ImportError:
+    pass  # not installed locally, fine, only needed on Streamlit Cloud
 
+import os
 import configparser
 import streamlit as st
 import chromadb
 from openai import OpenAI
 
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
 COLLECTION_NAME = "budget_speeches_para750"
-CHROMA_PATH = "data/chroma_db"
+CHROMA_PATH = os.path.join(BASE_DIR, "data", "chroma_db")
 EMBED_MODEL = "text-embedding-3-small"
 CHAT_MODEL = "gpt-4o-mini"
 TOP_K = 5
 
 @st.cache_resource
 def get_clients():
-    if "openai" in st.secrets:
+    try:
         api_key = st.secrets["openai"]["api_key"]
-    else:
+    except (FileNotFoundError, KeyError, st.errors.StreamlitSecretNotFoundError):
         config = configparser.ConfigParser()
-        config.read("../docs/config.ini")
+        config.read(os.path.join(BASE_DIR, "..", "docs", "config.ini"))
         api_key = config["openai"]["api_key"]
     openai_client = OpenAI(api_key=api_key)
     chroma_client = chromadb.PersistentClient(path=CHROMA_PATH)
