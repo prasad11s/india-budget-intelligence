@@ -64,7 +64,7 @@ Question: {question}"""
     )
     return response.choices[0].message.content
 
-st.title("India Budget Intelligence")
+st.title("India Budget Intelligence — Union Budget Speeches, 1947–2025")
 st.caption("Covers Union Budget speeches from 1947-48 to 2025-26.")
 
 for msg in st.session_state.messages:

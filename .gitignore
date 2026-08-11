@@ -232,4 +232,4 @@ src2.0/data/chroma_db_test/
 
 # ignoring the previous data storage as well 
 
-archive/src/data/
+archive/data/
