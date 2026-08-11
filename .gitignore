@@ -228,3 +228,13 @@ config.ini
 
 # One time folder structure snapshot, not source
 structure.txt
+
+# ignore the eraw files from the data / raw folder 
+
+src2.0/data/raw/
+src2.0/data/processed/
+src2.0/data/chroma_db_test/
+
+# ignoring the previous data storage as well 
+
+archive/src/data/

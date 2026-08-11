@@ -1,0 +1,414 @@
+Decision log for the src2.0 sandbox slice
+1. Document choice: 2025-26 vs 2026-27
+
+Decision: use the 2026-27 Union Budget speech.
+Why: this was the original thin vertical slice candidate identified before this sandbox work started, and staying with it keeps continuity with that earlier plan. Reusing 2025-26 would have saved nothing, since src2.0 does fresh extraction and chunking regardless of which speech is used, independent of the main 185k chunk ChromaDB. The only real difference between the two options was which document content we would need to know well enough to write test questions against.
+
+2. Confirmed source file
+
+Decision: 2026-27 speech PDF confirmed present and readable, clean modern PDF, no OCR needed. This matches the DATA_CATALOG note that speeches from 2011-12 onward are clean PDFs.
+
+3. Golden set of test questions, written before touching any code
+
+Decision: wrote 10 questions with known correct answers, pulled directly from the speech text, before starting extraction or chunking.
+Why: if questions are written after seeing chunked output, there is a risk of unconsciously writing questions that suit whichever chunking already looks good. Writing them first keeps the comparison across the 4 variants honest. Several questions were deliberately built around pairs of similar but different numbers sitting close together in the text, for example the two fiscal deficit figures and the two public capex figures, since that is exactly where a bad chunk boundary is most likely to pull in the wrong number.
+
+4. RAGAS, discussed and set as backlog
+
+Decision: not implementing RAGAS now. Noted as a backlog item.
+Why: RAGAS is an automated LLM judged scoring tool for RAG pipelines, split into retrieval metrics (context precision, context recall) and answer metrics (faithfulness, answer relevancy), which lines up with the rule to track retrieval and answer quality separately. At the current scale, 10 questions across 4 variants on one document, manual review is fast enough and keeps the process closer to the actual outputs. RAGAS becomes worth the setup cost once this scales to the full 92 document corpus, where manual checking every output stops being realistic.
+
+5. Next step
+
+Move to Phase 1 of the src2.0 slice: extraction from the 2026-27 speech PDF, one stage at a time, output confirmed before moving to chunking.
+
+6. Extraction stage, confirmed
+
+Decision: extraction complete using pdfplumber, one script, src2.0/extract_text.py, output at src2.0/data/processed/bs2026_27.json. 65 pages extracted, no crashes, no OCR needed.
+Why this matters: before moving to chunking, we manually checked actual output rather than assuming success from the absence of errors, per your rule of confirming each stage before moving forward.
+
+What we checked and found:
+
+Page 2 came back empty. Confirmed this is a genuine blank divider page in the PDF between the title page and the contents page, not an extraction failure.
+Page 3, the contents page, extracted cleanly and in correct order.
+Page 48 and page 58, both containing multi column tax rate tables, extracted with columns correctly attached to their row, for example Sl No, Nature of receipt, Current Rate, and Proposed Rate stayed grouped together even where a cell wrapped across multiple lines. This confirms the table scrambling failure mode seen in the main pipeline is not occurring here, as expected for a clean, post 2011 PDF, but confirmed rather than assumed.
+
+Flag for the chunking stage, not acted on yet: some table rows, like the one on page 48, wrap a rate value across a line break inside a single cell. A fixed size chunk boundary could cut through the middle of a row like this and separate a number from the label it belongs to. This is exactly the kind of failure our golden set questions 2, 3, 4, 9, and 10 are designed to catch, since they involve pairs of similar numbers sitting close together in the text.
+
+7. Path fix along the way
+
+Decision: corrected pdf_path and output_path in extract_text.py twice, first to remove a redundant src2.0/ prefix since the terminal was already positioned inside src2.0, then to add back data/ once the folder structure was created to match the original planned layout, data/raw and data/processed.
+Why: paths in the script must be relative to wherever the terminal is running from, not relative to the project root, unless the terminal is explicitly at the root.
+
+
+8. Next step
+
+Move to chunking. Plan is to build the first of the four variants, fixed size chunking, then paragraph or sentence aware chunking, each at 500 and 1000 characters, four variants total, tested against the same 10 question golden set.
+
+9. Fixed size chunking at 500 characters, first look
+
+Decision: built chunk_fixed.py, chunk size 500, overlap 100, sliding window over the full document text with page tracking. Produced 249 chunks.
+
+What we checked and found:
+
+Prose text, page 5 to 6 area, breaks mid sentence and even mid word at chunk boundaries, for example "fiscal" cut off before "prudence and monetary stability" in the next chunk, "producti" cut off before "productivity". This happens regularly, roughly every chunk boundary lands somewhere mid sentence given how short 500 characters is relative to sentence length.
+Table text, page 58, customs duty rate table, out of 5 rows spanning that boundary, 4 stayed fully intact with label and rate values together, 1 row broke, "Control and Protector Absorber Rods, Burnable Absorber Rods..." got separated from its own rate values, "7.5% Nil", split across two different chunks with no shared row number or full label to reconnect them.
+
+Why this matters, and the key finding to carry forward: prose and tables break at roughly the same rate under fixed size chunking, but the consequence is not the same. Overlap tends to preserve enough repeated context that a broken sentence still appears whole in one of the two neighboring chunks, and even a genuinely lost sentence fragment rarely changes whether a factual query gets answered correctly. A broken table row is different, since a specific number tied to a specific label is an atomic fact, it either survives in one chunk or the answer is wrong, and overlap does not reliably reconnect a label to its value the way it reconnects a sentence.
+
+This is the same failure mode already identified in Phase 5 of the main pipeline, inter context conflicts and correct number wrong attribution, just showing up here at the level of a single chunk boundary rather than across multiple retrieved contexts.
+
+10. Next step
+
+Build fixed size chunking at 1000 characters, same method, larger window, to see whether the larger window reduces how often table rows get split, then move to paragraph or sentence aware chunking at both sizes.
+
+
+11. Fixed size chunking at 1000 characters
+
+Decision: built chunk_fixed_1000.py, same script structure as the 500 character version, chunk size 1000, overlap 200, keeping the overlap ratio proportional to the 500/100 version.
+
+What we checked and found:
+
+Same page 58 table, rows 1 through 6 all stayed fully intact within a single chunk, including row 5, "Control and Protector Absorber Rods...", which broke under the 500 character version. Only row 7 broke at the boundary, but its full label and rate value still appeared whole together in the next chunk through the overlap, so nothing was actually lost across the pair.
+Prose chunk from the same early page area held two full sentences and almost all of a third, breaking only near the very end of the window.
+Clear improvement over 500 characters for table integrity, consistent with the earlier finding that tables need more room than prose to survive a chunk boundary without losing the connection between a label and its value.
+
+Tradeoff not yet tested: larger chunks may reduce retrieval precision by diluting the embedding with more surrounding, less relevant text. This is not verifiable by reading text alone, needs actual retrieval testing against the golden set.
+
+12. Note on chunk size selection
+
+Discussed whether chunk size should be picked via formula. Conclusion: no formula gives a precise answer, but two things narrow it down. First, character count relates to token count, roughly 4 characters per token, and each embedding model has a range where it summarizes text well without averaging too many different ideas into one vector. Second, chunk size ideally matches the natural unit of meaning in the content, a speech point or a table row, rather than an arbitrary character count, which is the core argument for testing paragraph aware chunking next. The actual answer comes from running the golden set against each variant and comparing empirically, not from a formula, consistent with Chroma's 2024 benchmarking finding that retrieval recall and answer accuracy do not always move together as chunk size changes.
+
+Scope note: chunk size grid stays fixed at 500 and 1000 characters as originally planned. A middle value like 750 is not being added unless retrieval testing on the current 4 variants shows a specific failure that a middle value would plausibly fix. No such evidence exists yet, so this stays out of scope for now.
+
+13. Next step
+
+Build paragraph or sentence aware chunking, at both 500 and 1000 character target sizes, to compare against the two fixed size variants already built.
+
+14. Chunk size and strategy, one size for all documents or different per document type
+
+Discussed whether the same chunking approach should apply across budget speeches, Economic Surveys, and full budget documents, or whether each document type needs its own tuned strategy.
+
+Conclusion: likely different strategies are needed per document type, since the underlying content structure differs significantly. Budget speeches are mostly prose with occasional tables, based on what we have seen directly. Economic Surveys lean more heavily on statistical appendices and data tables per DATA_CATALOG. Full budget documents, per PROJECT_SCOPE and DATA_CATALOG, are largely financial statements and structured numerical data, likely far more table heavy than a speech. Since we already proved tables need larger chunks or table aware handling to avoid separating a label from its value, a chunk size that works well for a speech may not work well for a document type dominated by tables.
+
+Decision on how to handle this now versus later, split into two parts:
+
+Design decision, act on now: build the chunking function so chunk size and strategy are parameters tied to doc_type, not hardcoded values, so the pipeline can support different settings per document type later without a structural rewrite. This costs little now and avoids a costly retrofit later.
+Strategy decision, defer to backlog: which specific chunking approach wins for Economic Surveys or full budget documents is not being decided now, since our golden set and 4 variant experiment only cover the budget speech. No evidence exists yet for other document types. When scaling to those document types, the same golden set plus 4 variant testing process should be repeated for each document type on its own terms, not assumed to inherit the speech's winning result.
+
+Why this matters and is not scope creep: this is a design principle affecting how code is structured, not new chunking variants being tested right now. The bounded 4 variant grid for the speech stays exactly as originally scoped.
+
+15. Paragraph or sentence aware chunking, 500 and 1000 character targets
+
+Decision: built chunk_paragraph.py using sentence based splitting with a greedy fill up to target size, one sentence of overlap, never cutting inside a sentence. Function written with doc_type, year, and filename as parameters per the design decision in note 14, so it is reusable across document types later.
+
+What we checked and found, para_500:
+
+Prose chunks broke cleanly at sentence boundaries, no mid word or mid sentence cuts, a clear improvement over fixed size 500 on the same early page content.
+Page 58 table, row 5, which broke under fixed size 500 with no recovery, stayed fully intact under paragraph aware 500.
+
+What we checked and found, para_1000:
+
+Rows 3 through 7 on page 58 all stayed fully intact within chunk 0118, a longer uninterrupted run of intact rows than para_500 managed before its first split.
+Row 8 split across chunk 0118 and 0119, but the 1 sentence overlap meant it still appeared whole in chunk 0119, so nothing was actually lost.
+Performs comparably to fixed_1000 from note 11 on this same table, both kept roughly 6 rows intact before any split occurred, suggesting the larger window helps both methods similarly here, while the smaller window is where paragraph aware pulled ahead of fixed size.
+
+Reason paragraph aware performed well on this table at all: the sentence splitting regex only splits after a period immediately followed by whitespace. This table's rows have no internal punctuation matching that pattern, only the row numbers themselves do, so each row became one atomic sentence unit by accident of this table's formatting, not by deliberate design.
+
+Important caveat, not yet verified: this protection is specific to how this table happens to be punctuated. A different table structure, for example an Economic Survey statistical appendix with different formatting, might not get the same protection. This is not assumed to transfer to other document types, consistent with note 14.
+
+Early read: paragraph aware chunking's real advantage over fixed size shows up at the smaller 500 character target, where it avoided a break fixed size could not avoid. At 1000, both methods perform similarly well on this table. This still needs confirming through actual retrieval testing on the golden set, not just visual inspection of chunk boundaries.
+
+16. Chunk counts across all 4 variants, and the cost implication
+
+Final counts: fixed_500, 249 chunks. fixed_1000, 125 chunks. para_500, 308 chunks. para_1000, 129 chunks.
+
+What this shows: para_500 produced roughly 24% more chunks than fixed_500 for the same 500 character target, since sentence aware greedy fill stops as soon as the next full sentence would exceed the target, leaving unused space in many chunks that fixed size chunking does not leave, since fixed size always fills exactly to the character limit. At 1000, the gap almost disappears, 125 versus 129, since there is more room per chunk for sentences to fill closer to the ceiling before hitting it.
+
+Cost implication, connecting to note 12: more chunks at roughly the same size means more total tokens sent to the embedding API for the same document. Paragraph aware chunking's table row protection advantage at the 500 character target comes at a real, quantifiable token cost, roughly 24% more chunks to embed. At the 1000 character target, the same row protection benefit comes at almost no extra chunk count cost.
+
+Not yet decided: whether this cost difference matters enough to prefer one method over another. At this single document, one time embedding scale, the actual dollar difference is still negligible per note 12. This becomes more relevant once scaled to the full 92 document corpus, where the token count difference across 24% more chunks, repeated across every document if applied broadly, would compound into a real number.
+
+17. Next step
+
+Move to embedding all 4 chunk sets into a throwaway ChromaDB collection, then run retrieval against the golden set to get actual evidence, rather than visual inspection, on which variant performs best.
+
+18. Embedding, all 4 variants into throwaway ChromaDB
+
+Decision: built embed_chunks.py, reads OpenAI key from the existing docs/config.ini via configparser, same file the main pipeline already uses, no separate sandbox config created. Uses text-embedding-3-small for this first pass. Writes to a separate throwaway ChromaDB folder, data/chroma_db_test, kept fully apart from the main project's 185,000 chunk production collection.
+
+Ran once per chunk file, one named collection per variant, all 4 now embedded successfully with counts matching the chunking stage exactly: fixed_500, 249. fixed_1000, 125. para_500, 308. para_1000, 129.
+
+Design note: script embeds all chunk texts for a given file in a single batched API call rather than one call per chunk, faster and avoids unnecessary request overhead. Metadata stored alongside each embedding includes year, doc_type, filename, page_start, page_end, and chunk_method, so any retrieval hit can be traced back to its exact source and chunking method later.
+
+Not yet tested: retrieval quality. This stage only confirms the embeddings were created and stored, not whether they retrieve the right chunk for a given question.
+
+19. Next step
+
+Write the retrieval script, run the 10 golden set questions against all 4 collections, and compare which chunk each collection surfaces as the top match for each question. This is where we get actual evidence instead of visual inspection, on which chunking variant performs best for this document.
+
+
+20. Retrieval test, text-embedding-3-small, all 4 variants, 4 questions
+
+Decision: built retrieve_test.py, embeds each question with the same model used to embed the chunks, queries all 4 collections independently, top 3 results per collection, per question.
+
+Clarified two side questions before analyzing results:
+
+ChromaDB's default distance metric is squared L2, not cosine, since the collections were created without setting hnsw:space to cosine. However OpenAI embeddings are normalized to unit length, and for normalized vectors, L2 distance and cosine distance always produce the identical ranking, only the raw numbers differ. So this does not change which chunk ranks first, second, third.
+n_results in ChromaDB's query is itself k nearest neighbor search. Not a separate technique to test, it is what we are already running.
+
+Results across 4 questions, text-embedding-3-small:
+
+Q1, fiscal deficit BE 2026-27, correct answer 4.3 percent: para_500 rank 1 correct, lowest distance of all four, 0.4353. para_1000 rank 1 wrong, pulled debt-to-GDP figure instead. fixed_500 and fixed_1000 rank 1 unclear, truncated preview did not confirm the figure was present.
+Q2, debt to GDP ratio BE 2026-27, correct answer 55.6 percent: para_500 rank 1 correct, lowest distance, 0.3671. para_1000 and fixed_500 also correct at rank 1 but higher distance. fixed_1000 rank 1 wrong, pulled general intro paragraph instead.
+Q3, MAT rate, correct answer 14 percent from 15 percent: no collection got a clean rank 1 hit. para_1000 had the exact correct chunk but at rank 3, not rank 1. All others pulled MAT credit set-off mechanics instead of the actual rate figures.
+Q4, STT rate on Futures, correct answer 0.05 percent from 0.02 percent: para_500 rank 1 correct, distance 0.8137. All three other collections buried the correct chunk at rank 2 or 3 instead of rank 1.
+
+Early finding: para_500 produced a correct or clearly on topic rank 1 hit in 3 of 4 questions, with the lowest distance among all 4 collections in those 3 cases. fixed_1000 performed weakest, missing rank 1 relevance on 3 of 4 questions. This is on text-embedding-3-small only, not yet tested with text-embedding-3-large.
+
+Caveat: this measures retrieval quality only, whether the correct chunk was surfaced, kept separate from answer quality per project rule. Generation stage, whether an LLM produces a correct final answer from these retrieved chunks, is not yet tested.
+
+
+21. Revised plan for embedding model comparison
+
+Decision: run text-embedding-3-large across all 4 chunking variants on the same 4 questions first, to find the large model's own winner independently, rather than assuming the small model's winner, para_500, automatically transfers. Once both a small model winner and a large model winner are identified from their own fair 4 variant comparison, run the full 10 question golden set on just those two finalists to make the final decision between them.
+
+22. Retrieval test, text-embedding-3-large, all 4 variants, same 4 questions
+
+Ran retrieve_test_large.py, same 4 questions, same method, against the 4 large model collections.
+
+Results, checked against actual correct answers rather than assumed from pattern continuation:
+
+Q1, fiscal deficit, correct answer 4.3 percent: para_500_large rank 1 correct. para_1000_large rank 1 wrong, pulled debt-to-GDP chunk. Both fixed size variants rank 1 correct on the surrounding paragraph, but the actual 4.3 figure was not clearly confirmed inside the truncated preview shown.
+Q2, debt to GDP, correct answer 55.6 percent: para_1000_large rank 1 correct. para_500_large rank 1 wrong this time, pulled general fiscal commitments intro instead, correct chunk only at rank 2. fixed_500_large rank 1 correct. fixed_1000_large rank 1 wrong.
+Q3, MAT rate, correct answer 14 percent from 15 percent: no collection got a clean rank 1 hit, consistent with the small model result. para_1000_large came closest, correct chunk at rank 2. All others buried it further or missed it entirely.
+Q4, STT rate on Futures: para_500_large and para_1000_large both rank 1 correct. Both fixed size variants missed rank 1, correct chunk pushed to rank 2 or 3.
+
+Correction to prior read: under text-embedding-3-large, para_500 and para_1000 each scored 2 out of 4 clean rank 1 hits, a tie on this small sample, not a clean win for para_500 the way it appeared under the small model, where para_500 scored 3 out of 4. Important not to assume a pattern from one embedding model transfers directly to another without checking each collection individually against the actual correct answer, which is what caught this correction.
+
+What holds consistently across both embedding models: both paragraph aware variants outperformed both fixed size variants on rank 1 relevance. fixed_500_large and fixed_1000_large scored zero clean rank 1 hits across all 4 questions under the large model, same weak pattern seen under the small model. This is now a reasonably solid finding, paragraph aware chunking beats fixed size chunking for this document, independent of embedding model choice. Which paragraph aware size wins, and which embedding model wins, is not yet decided, sample of 4 questions too small to separate them confidently.
+
+23. Next step
+
+Run the full 10 question golden set on para_500 and para_1000 only, under both text-embedding-3-small and text-embedding-3-large, 4 total comparisons, to settle which specific combination wins, since the 4 question sample was enough to rule out fixed size chunking but not enough to separate the two paragraph aware sizes or the two embedding models from each other.
+
+24. Full 10 question golden set, para_500 vs para_1000, small vs large model
+
+Ran retrieve_final.py across all 10 questions on the 4 finalist collections.
+
+Rank 1 correct hit count: para_500, 8 out of 10. para_1000, 5 out of 10. para_500_large, 7 out of 10. para_1000_large, 6 out of 10.
+
+Winner: para_500, text-embedding-3-small, paragraph aware chunking at 500 character target.
+
+Known weakness in the winner: Q8, the MAT rate question, missed the correct chunk entirely from the top 3 under both 500 character variants. The correct sentence sits near the tail of a paragraph that a 500 character window cuts off before reaching. Both 1000 character variants caught it at rank 2, confirming the cause, window size, not embedding model, is what determines whether this specific fact survives intact.
+
+Clarification on the earlier large model result: found via conversation search that a prior session's embedding comparison, 4.2_compare_embeddings.py, showed text-embedding-3-large outperforming small by cosine similarity gap, 0.0267 versus 0.0033, averaged across only 3 hand picked query and chunk pairs. This measured similarity score separation, not rank 1 retrieval accuracy, and was run against fixed size chunks from the main pipeline, not the paragraph aware chunks tested in this sandbox. Both results are valid, they are answering different questions on different data, not a contradiction. Large showed cleaner score separation on those 3 pairs, small won rank 1 hit rate on these 10 questions with paragraph aware 500 character chunks. Worth remembering going forward, a "which embedding model wins" conclusion from one test does not automatically transfer to a different chunking method or a different question set.
+
+Improvement levers identified for the known MAT gap and beyond, in order of cost to implement:
+
+Increase TOP_K at generation time, so retrieval returning the correct chunk at rank 2 or 3 still reaches the LLM as context. Zero rebuilding needed, config change only. Chosen to test immediately as part of building the generation stage, not backlogged, since generation needs multiple chunks regardless.
+Slightly larger chunk size or larger overlap specifically to catch tail-of-paragraph facts like the MAT rate. Not applied yet, would require re-chunking and re-embedding.
+Query rewriting or expansion, backlogged. Rewrites a user's raw question into phrasing closer to how the document itself states things before embedding it, useful where the question's wording and the document's wording differ meaningfully, as seen in Q5 with "total expenditure" versus the document's "non-debt receipts" framing.
+Hybrid search, keyword plus semantic, backlogged. Useful specifically for exact number or exact term matches, which is where semantic embeddings are weakest, as seen throughout this test.
+
+25. Next step
+
+Move to the generation stage using para_500, text-embedding-3-small. Build with TOP_K = 3, feeding all 3 retrieved chunks to the LLM as context rather than just the top 1, to test directly whether this recovers the MAT question and the other near misses, before deciding if further chunking changes are needed.
+
+26. TOP_K = 5 retest, does it recover the MAT question
+
+Reran retrieve_final.py with TOP_K = 5 instead of 3, to test the theory that the correct MAT chunk was simply sitting just outside the top 3.
+
+Result: confirmed false for para_500 and para_500_large, both still missing the correct chunk from the top 5. Checked directly, chunk 0130 in para_500 ends right before the sentence with the actual rate figures, "reduced to 14 percent from the current MAT rate of 15 percent," which lives in the next chunk over, chunk 0131, and that chunk never appears in either 500 character collection's top 5 for this question. Confirmed correct for para_1000 and para_1000_large, both surface the correct chunk within top 5, at rank 3 and rank 2 respectively.
+
+Conclusion: increasing TOP_K at generation time cannot fix this specific gap for para_500, since the issue is the chunk boundary itself separating the topic sentence from its numeric value, not a ranking depth problem. No amount of retrieving more results changes where that boundary sits.
+
+Averaging raw L2 distance across top 3 versus top 5 was considered and rejected as a metric, discussed before this test. Averaging is guaranteed to increase whenever more, necessarily farther, ranks are included, so it is not a fair quality comparison, it just reflects how many results were averaged. Comparing average rank 1 distance only, or average correct-chunk-rank across the golden set, are the two metrics that actually stay comparable across collections, and are the metrics used in the analysis above and in note 24.
+
+27. Decision: para_500 or para_1000 as the sandbox winner
+
+Given the confirmed finding in note 26, a real choice needs to be made. para_500 wins rank 1 accuracy 8 out of 10 overall, per note 24, but has one confirmed unrecoverable gap on the MAT question, unrecoverable by TOP_K increase at least. para_1000 wins on this one specific question by getting a decent rank, but scored lower overall, 5 out of 10, per note 24.
+
+Decision: proceed to the generation stage using para_500, text-embedding-3-small, TOP_K = 5, accepting the known MAT gap as a documented limitation of this sandbox result rather than continuing to chase a fix within the current bounded scope. Reasoning: para_500 wins on 8 of 10 real questions, a stronger overall result, and the MAT gap has a known, already logged root cause, chunk boundary cutting between a topic sentence and its number, which is exactly the type of gap Phase 6 structured extraction, already planned in the main pipeline, is designed to solve at the architecture level, rather than something to keep patching at the chunking level within this bounded experiment.
+
+28. Next step
+
+Run generate_answer.py as already written, using para_500 and TOP_K = 5, across all 10 questions. Check two things separately per project rule: whether the correct chunk was retrieved, already known per note 24 and note 26 for each question, and whether the LLM's generated answer is actually faithful to what was retrieved, including confirming it correctly says "insufficient data" for the MAT question rather than guessing or hallucinating a number.
+
+29. Generation stage, para_500, TOP_K = 5, all 10 questions
+
+Ran generate_answer.py. All 10 answers matched the known correct figures from the golden set, including the MAT rate question.
+
+MAT question investigated specifically, since note 26 predicted the correct chunk, 0131, would not be retrieved, and it indeed was not among the 5 retrieved chunks. The correct answer still surfaced because chunk 0222 at rank 2 contains a second, independent restatement of the same fact, "MAT is proposed to be made as a final tax and the corresponding rate is reduced from 15% to 14%," located in the Annexure to Part B rather than the main speech body where chunk 0131 sits. The document states this fact twice, in two different sections with different wording, and para_500 chunking happened to keep the annexure version intact even though it broke the main body version.
+
+Important caveat: this is a property of this specific document having redundant statements of the same fact, not a property of para_500 chunking being reliable for facts that appear only once. The underlying chunk boundary problem identified in note 26 is still real and would still cause a failure for a fact not restated elsewhere in the document. This should not be read as "the MAT gap is fixed," only as "this specific instance of it happened to have a safety net."
+
+Other notable check, Q7, Electronics Components Manufacturing Scheme: the model correctly computed the increase amount, ₹17,081 crore, as the difference between the stated new outlay, ₹40,000 crore, and the original outlay, ₹22,919 crore, mentioned in context. This is a simple grounded computation from numbers present in the retrieved chunks, not an invented figure, consistent with faithfulness rather than hallucination.
+
+Overall generation stage result: 10 out of 10 correct answers, all traceable to retrieved chunks, no hallucination observed.
+
+30. Revisit para_750 decision
+
+With generation now tested, the MAT gap in para_500 is confirmed to still exist at the chunking level, note 26, but did not cause a wrong answer in this specific test due to document redundancy, note 29. This softens the urgency of building para_750, since the practical, end to end result for this document was already 10 out of 10 correct without it. Whether to still build para_750 as a robustness improvement, for facts that might not have a redundant restatement elsewhere in the document, is now the open decision, discussed next.
+
+31. para_750, reconstructed check across all 10 questions
+
+Reconstructed likely chunk boundaries by hand, sentence by sentence, using the actual source document text and the same greedy fill logic as chunk_paragraph.py, since the chunk file itself was not saved to disk in the combined test script.
+
+Provisional finding: all 10 questions appear to have their correct answer intact within the rank 1 chunk under para_750, including Q8, the MAT question, which broke under both para_500 and para_1000 requiring a fallback to redundant text elsewhere in the document. Under para_750, the primary MAT sentence itself, not a redundant restatement, appears to fit within the same chunk as its introducing context, with roughly 90 characters of headroom to spare.
+
+Caveat, stated clearly: this is a hand reconstruction, not a direct reading of the actual saved chunk file, and carries real risk of being off in borderline cases such as Q5 and Q7. Should be confirmed against the actual chunk file before treating this as settled.
+
+32. Next step
+
+Verify the reconstruction directly by reading the actual saved chunk text for the key chunk ids, particularly chunk 0080, from the real chunk file, rather than relying on the hand count. If confirmed, para_750, text-embedding-3-small, becomes the strongest candidate overall across all four sizes tested, since it appears to close the one known gap in para_500 without needing to fall back on document redundancy.
+
+33. para_750 verification, confirmed against real chunk file
+
+Read the actual saved chunk file for the three key chunks flagged in note 31 and note 32.
+
+Chunk 0080, MAT question: confirmed both "14 percent" and "15 percent" appear together in the primary speech text, points 142 and 143, not a fallback to redundant annexure text as was needed for para_500 in note 29. This is a genuine architectural fix at the chunking level, not a lucky document redundancy.
+
+Chunk 0061, Q5: confirmed both the RE 2025-26 figure (₹49.6 lakh crore) and BE 2026-27 figure (₹53.5 lakh crore) present together.
+
+Chunk 0012, Q7: confirmed both original outlay (₹22,919 crore) and increased outlay (₹40,000 crore) present together.
+
+Conclusion: para_750, text-embedding-3-small, closes the one known gap in para_500 without relying on document redundancy, while the retrieval pattern from note 24 suggests it should retain most of para_500's strong overall accuracy, since it is the same paragraph aware method at a slightly larger size. This makes para_750 the strongest chunking candidate found in this bounded experiment.
+
+34. Next step
+
+Two things remain before calling the src2.0 chunking experiment complete. First, run generate_answer.py against the para_750 collection instead of para_500, all 10 questions, to get the full end to end confirmation the same way note 29 did for para_500. Second, once that is confirmed, decide whether para_750 or para_500 becomes the setting carried forward into the next stage, Streamlit, or eventually back into the main pipeline.
+
+35. Generation stage, para_750, TOP_K = 5, all 10 questions, confirmed
+
+Ran generate_answer.py against the para_750 collection. All 10 answers correct, matching the golden set. MAT question retrieved chunk 0080 at rank 1, containing the genuine primary text statement of both 14 percent and 15 percent, not the annexure redundancy para_500 needed in note 29. This is the clean, direct fix, not a lucky document duplication.
+
+36. Decision: para_750 as the sandbox conclusion
+
+para_750, text-embedding-3-small, is the strongest chunking and embedding combination found across this bounded experiment. It matches para_500's full 10 out of 10 generation result while closing the one confirmed retrieval gap para_500 had, and does so without needing a coincidental restatement elsewhere in the document. Reasoning for the win, grounded in the sequence of findings across this session: paragraph aware chunking outperformed fixed size chunking at every size tested, note 22 and note 24; text-embedding-3-small outperformed text-embedding-3-large on this document and this chunking method, note 24, a genuinely different result from an earlier session's finding on a different chunking method, note 24's clarification; and 750 characters gives paragraph aware chunking enough room to keep a full point and its immediately following point together, which is exactly the unit size several answers in this speech actually depend on, without inflating chunk count anywhere near as much as jumping to 1000 would.
+
+This closes the bounded chunking and embedding experiment as originally scoped: 2 methods, now effectively 3 sizes tested given the justified exception for 750, 2 embedding models, tested against a fixed 10 question golden set, retrieval and generation checked separately throughout.
+
+37. Next step
+
+The src2.0 slice's core question, best performing chunking and embedding setup for this document, is now answered with real evidence. Remaining open items: the Streamlit interface, not yet built, and the decision of whether and how these findings feed back into the main pipeline's 92 document, 185,000 chunk system, which uses different settings entirely, fixed size 1000, text-embedding-3-large, per the memory context.
+
+38. Caching, answer caching, and scaling: sequencing decision
+
+Discussed four separate things at once: retrieval caching (the technique from the main pipeline's 5.5_cache_retrieval.py, saving retrieval output to a file to avoid repeat embedding calls during prompt iteration), answer caching (a different, unbuilt concept, storing the final generated answer keyed to the exact question so repeated identical questions skip both embedding and generation calls), Streamlit, and scaling to Economic Surveys and full budget documents.
+
+Clarified "cached memory" refers to the retrieval caching pattern already built in the main pipeline, not a Claude or OpenAI platform feature.
+
+Decision: build Streamlit next, using para_750 as is. Defer both caching techniques and the scaling question. Reasoning: caching optimizes an app that is already running and being reused, there is no running app yet to optimize the cost of. Scaling to other document types was already flagged in note 14 as needing its own separate chunking experiment, since table to prose ratios differ significantly across document types, not something to fold into finishing this one. Both are backlog items, to be picked up once Streamlit exists, consistent with how RAGAS was backlogged in note 6.
+
+39. Next step
+
+Build the Streamlit interface for the src2.0 slice, using the para_750, text-embedding-3-small setup confirmed in note 35 and note 36.
+
+40. Streamlit app location and scope
+
+Decision: build the Streamlit app inside src2.0, not src. It is the thin vertical slice prototype for the 2026-27 speech only, using the validated para_750, text-embedding-3-small setup. Not treated as the final or only app yet, and not treated as proof that the main pipeline should switch settings, since that requires testing against Economic Surveys and full budget documents first, per note 14. Scaling to other document types and any decision to merge src2.0 findings into src remain open, deferred questions, not resolved by this prototype's success on one document.
+
+41. Real world testing surfaces a structural RAG limitation, not a bug
+
+Streamlit app tested live with free form questions beyond the golden set.
+
+Correct refusals: "allocation for education" and "allocation for defence" both returned "insufficient data" correctly, since no such figures actually appear in this speech. This is honest behavior, not a failure, matching the PROJECT_SCOPE requirement for an insufficient data fallback when information genuinely is not present.
+
+Structural limitation found: counting questions, "how many times is Modi mentioned," cannot be answered by retrieval based RAG at all, regardless of chunk size or TOP_K tuning. Retrieval only surfaces the 5 most semantically similar chunks out of roughly 130, and a counting question has no meaningful semantic anchor, it needs visibility into the entire document, not the most relevant fragments of it. This maps to the query classification step already described in PROJECT_SCOPE section 7.3, factual and comparative queries suit retrieval, counting and exhaustive queries do not and need a different mechanism entirely, for example direct text search or structured extraction, not chunk retrieval.
+
+Decision: log this as a known category limitation of the current architecture, not a defect to fix within this bounded sandbox. Any fix would require a query classification layer routing counting-type questions away from RAG entirely, which is a larger architectural addition than this experiment's scope covers.
+
+42. Scope expansion: adding full budget document for allocation questions
+
+Decision: extend the src2.0 slice to include a second source document for the 2026-27 budget, specifically to test whether ministry wise allocation questions like defence and education can be answered once the right document is present. This follows directly from note 41's finding that the speech itself, by design, does not contain those figures, per DATA_CATALOG's own scope notes on where such data actually lives.
+
+This is a genuine scope expansion beyond the original single document, single chunking experiment, justified because it tests a real hypothesis with clear evidence potential, not open ended exploration. Query classification and routing architecture, discussed in note 41, remains deferred and not started.
+
+Immediate need: confirm which specific budget document to use. "Budget at a Glance" for 2026-27 is the likely best candidate, per DATA_CATALOG, since it is a single summary document rather than the multi volume full Expenditure Budget, and is the document type most likely to contain a direct ministry wise allocation table.
+
+43. Document selection for allocation question testing
+
+Decision: use budget_at_a_glance.pdf from full_budget, not the Excel version and not Demands for Grants or Expenditure Budget. Reasoning: name and DATA_CATALOG description both indicate this is the compact summary document most likely to contain a direct, single table ministry wise allocation view, versus the other folders which are large detailed volumes more likely split across many pages or Excel sheets. PDF format also lets us reuse the existing extract_text.py pattern directly, deferring the Excel extraction question, pandas versus openpyxl, multi sheet handling, until it is actually needed.
+
+44. Extraction stage, budget_at_a_glance.pdf, confirmed
+Extraction complete using pdfplumber, script src2.0/extract_baag.py, output at src2.0/data/processed/budget_at_a_glance.json. 25 pages extracted, no crashes.
+Checked the "Expenditure of Major Items" table, page 15 (PDF page 11). Defence row and Education row both extracted with label and all four year columns (Actuals 2024-25, BE 2025-26, RE 2025-26, BE 2026-27) attached correctly, no line-break splitting. BE 2026-27 figures: Defence ₹594,585 crore, Education ₹139,289 crore. This directly resolves the note 41 gap using budget_at_a_glance.pdf alone, without needing allafs.pdf.
+Hindi text shows the same character-remapping pattern already known from Economic Surveys (e.g. "िेंिि" for Pension, "पिक्षा" for Education in the raw extracted text). Confirmed cosmetic, does not affect the English or numeric columns.
+
+45. Chunking stage, budget_at_a_glance.pdf, para_750, confirmed with caveat
+Ran chunk_baag_para750.py. 24 chunks from 25 pages (page 2 absent, likely blank divider). Because pdfplumber's extracted text for this document has no double-newline paragraph breaks, "para_750" collapsed to one chunk per page rather than true paragraph grouping. This is a meaningful difference from how para_750 behaved on the speech, worth flagging distinctly in the log rather than treating as equivalent settings.
+Consequence, positive: no table row was ever at risk of being split, since boundaries only fall between pages. Confirmed page 15 chunk (Expenditure of Major Items) contains both Defence (₹594,585 crore) and Education (₹139,289 crore) rows fully intact.
+Noted for embedding stage: pages 1 and 25 are near-duplicate cover pages with a distinct, more severe encoding issue than the rest of the document's Hindi text. Low retrieval value, candidate for exclusion before embedding.
+
+46. Embedding stage, budget_at_a_glance.pdf, confirmed
+Ran embed_baag.py, script at src2.0/embed_baag.py. Embedded all 24 para_750 chunks using text-embedding-3-small, batched in a single API call. Stored in a new, separate collection budget_at_a_glance_para_750, in the existing chroma_db_test store alongside the speech collections, per the note 44-area decision to keep this a separate collection rather than merging with the speech data. Metadata carries source and page numbers per chunk; fewer fields than the main pipeline's chunk metadata (no year/doc_type/filename), since this document only needed enough metadata to trace a chunk back to a page.
+
+47. Hindi-stripping stage, budget_at_a_glance.pdf, confirmed
+Wrote clean_hindi.py, regex-stripped the Devanagari Unicode block (\u0900-\u097F) from extracted text, output budget_at_a_glance_clean.json. Manually confirmed page 15: Defence and Education rows both intact with correct BE 2026-27 figures, no English or numeric content lost. Cover pages (1, 25) unaffected, since their garbled text uses a different font-encoding issue, not standard Devanagari codepoints, consistent with being a separate, known-cosmetic problem already flagged.
+
+48. Confirmed. Page 10 is now one whole chunk, the full Receipts table intact from "6\nReceipts" straight through to the closing notes, no split anywhere. Page 15's Defence/Education row is also still intact, same as before. The fix worked, back to true one-chunk-per-page behavior, no accidental mid-table splits anywhere in this set.
+
+Log entry:
+
+Cleaning fix, re-chunking, confirmed
+clean_hindi.py corrected to drop lines that become empty after Devanagari stripping, rather than leaving blank lines that the paragraph-based chunker misread as real breaks. Re-ran chunk_baag_para750_clean.py: back to 24 chunks from 25 pages, matching the original para_750 count. Manually confirmed page 10 (previously split into a near-empty fragment plus the Receipts table) is now one intact chunk. Page 15 (Defence/Education) also confirmed still intact. This version is now trustworthy to embed.
+
+49. Embedding stage complete for the cleaned version.
+
+Log entry:
+
+Embedding stage, budget_at_a_glance_clean, confirmed
+Ran embed_baag_clean.py. Embedded all 24 clean para_750 chunks using text-embedding-3-small, stored in a new collection budget_at_a_glance_para_750_clean, kept separate from the original budget_at_a_glance_para_750 collection so both remain available for comparison.
+
+50. Folder reorganization ahead of scaling to the full speech corpus
+
+Decision: reorganized src2.0 into dev/, archive/, and root, with data/raw/ and data/processed/ split into budget_speeches/ and budget_documents/ subfolders, mirroring the same split. The original src/ main pipeline and its data folder were moved to a top level archive/ folder, outside src2.0 entirely, kept for history but no longer the active code path. src2.0 is now the primary pipeline going forward.
+
+Why: this is the version going public on GitHub, and it will now scale to the full 92 speech corpus rather than the single 2026-27 speech test. The 4-variant chunking comparison and the budget_at_a_glance.pdf experiment already answered their questions, so those files moved to archive/, not because they are unimportant, but because they are concluded evidence rather than active pipeline code. Everything still mid-flight, budget_at_a_glance cleanup, Hindi character remapping, moved to dev/ instead.
+
+51. Fresh extraction decision, no reuse of prior JSONs
+
+Decision: extraction for the full 92 speech corpus is being redone from raw PDF, not reused from the main pipeline's existing data/processed/budget_speeches/ JSONs, even though those were already confirmed extracted in an earlier session.
+
+Why: this project is about to go public as the final artifact for recruiters. Reusing old JSONs risks carrying forward exactly the staleness problem already logged as a known main pipeline issue, files that were re-extracted after bug fixes leaving some downstream data out of sync with the current source text. Fresh extraction costs a few extra minutes and removes that risk entirely for a version meant to represent finished, verified work.
+
+52. Known gaps accepted, to be surfaced in the Streamlit app, not hidden
+
+Decision: bs199900 (1999-2000) and bs201011 (2010-11), missing from the government server, and the 2008-09 and 2009-10 speeches, served as HTML rather than PDF, are accepted as out of scope for this pass rather than chased further. This will be stated plainly in the Streamlit interface, not left as a silent gap, consistent with the PROJECT_SCOPE requirement for honest "insufficient data" behavior rather than papering over missing coverage.
+
+53. Single speech pipeline test, fresh extraction end to end, confirmed
+
+Ran the fresh, no-reuse pipeline against a single test PDF, bs2026_27.pdf only, before scaling to all 92, per the working rule of confirming one stage at a time. Extraction, chunking, and embedding all completed cleanly. One issue surfaced and fixed along the way: a stray leftover file, chunks_para_750.json, from an earlier single-document experiment, had ended up inside data/processed/budget_speeches/ and was not shaped like extraction output, causing the chunking script to crash on doc.get. Added a shape check so a malformed file is reported by name and skipped rather than stopping the whole run, deleted the stray file, reran cleanly.
+
+Result: 187 chunks from the single speech, embedded successfully into budget_speeches_para750. Ran 5 test questions from the original golden set through retrieval and generation, all 5 answers correct and matching the known figures exactly, fiscal deficit 4.3 percent, debt to GDP 55.6 percent, MAT 14 percent from 15 percent, STT on Futures 0.05 percent from 0.02 percent, and the correct attribution of the speech to Nirmala Sitharaman as Minister of Finance.
+
+54. Scaling to full 92 speech corpus, next step
+
+Decision: with the single document test confirmed clean, moving to the full corpus. All 92 raw PDFs to be copied into data/raw/budget_speeches/, then the same three scripts rerun as is, no code changes needed, since extraction skip logic and chunking/embedding's full-folder regeneration already handle the transition from one file to many. Added run_pipeline.py to run all three stages with one command and save a timestamped log of the full run, since this run will take significantly longer and needs to proceed unattended while other work continues in parallel.
+
+55. RAGAS attempted, blocked by a package incompatibility, staying backlog
+
+Attempted to run bs_ragas_eval.py. Failed with ModuleNotFoundError, ragas.llms.base imports ChatVertexAI from a langchain_community submodule that no longer exists in current langchain_community releases. Tried a clean reinstall of ragas, langchain, and langchain_community together to let pip resolve compatible versions, same failure persisted even against freshly installed ragas 0.4.3. This is a genuine incompatibility inside the ragas package itself, not a local environment issue fixable by pinning a different version quickly.
+
+Decision: not pursuing further today. Consistent with note 6's original reasoning, RAGAS earns its setup cost once manual review stops being realistic, and manual spot checking, as already done successfully on the single speech test, note 50, remains sufficient at this scale. Revisit either when ragas ships a fix, or when the corpus scale genuinely requires automated scoring, whichever comes first.
+
+56. Full 92 speech corpus, extraction through embedding, confirmed
+
+Ran run_pipeline.py against all 92 available speech PDFs, 93 files total in the raw folder including interim and special budgets, one already extracted from the earlier single-file test. Extraction: 92 new, 0 failed. Chunking: 11,470 total chunks across all 93 extracted files using para_750. Embedding: all 11,470 chunks embedded with text-embedding-3-small into budget_speeches_para750, no errors.
+
+Confirmed gaps present, all previously documented, none new: 1999-2000 speech missing from source, 2008-09 and 2009-10 served as HTML rather than PDF, 2010-11 missing from source entirely.
+
+57. All previously documented gaps resolved, full speech corpus achieved
+
+Sourced and added the four speeches originally flagged as unavailable: 1999-2000 and 2010-11, previously missing from the government server entirely, and 2008-09 and 2009-10, previously served as HTML rather than PDF. All four confirmed as clean, directly extractable PDFs, no OCR needed. Ran run_pipeline.py, skip logic correctly processed only the new files. Updated app.py's gap disclosure caption to remove the now-resolved years, since a disclaimer describing gaps that no longer exist would be inaccurate, not honest scoping.
+
+Result: full Union Budget speech corpus, 1947-48 through 2025-26, with no known missing years.
+
+58. Year-filtering gap identified during cross-year check
+
+Ran the planned cross-year check in the deployed Streamlit app, asked two year-specific questions with no year in the retrieved-chunk metadata matching the asked year, "education budget in year 2021" retrieved chunks from 1998-99, 1955-56, 1993-94, 1954-55, and 1991-92, none within a decade of the asked year. Same pattern on "defence budget in 2020." System correctly returned "insufficient data" rather than fabricate an answer from the wrong-year chunks, so the safety fallback held.
+
+Root cause: retrieval is pure semantic similarity with no year-based filtering, and specific years like "2020" or "2021" are weak lexical signals against strong, frequent topic words like "education" or "defence" that recur across decades of speeches. This is a distinct failure mode from the previously logged inter-context misattribution, that one blends numbers across correctly retrieved years, this one fails to retrieve the correct year at all.
+
+Decision: logging as a known limitation, not fixing today. Scoped fix already identified, ChromaDB metadata filtering on the year field during query, using the already-populated year metadata on every chunk. Consistent with the existing "on the horizon" plan for query routing via metadata filtering, not a new architecture decision, just a concrete trigger for one already planned.
