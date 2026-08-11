@@ -1,0 +1,4 @@
+streamlit
+chromadb
+openai
+pysqlite3-binary
