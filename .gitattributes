@@ -1,0 +1,4 @@
+src2.0/data/chroma_db/** -text
+*.sqlite3 binary
+*.bin binary
+*.pickle binary
