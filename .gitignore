@@ -207,13 +207,8 @@ marimo/_lsp/
 __marimo__/
 
 # Project data - raw files excluded from version control
-data/
 docs/PROJECT_KNOWLEDGE.md
 
-
-# Project data - raw files excluded from version control
-data/
-docs/PROJECT_KNOWLEDGE.md
 
 # Personal instruction/context docs, not part of the reusable pipeline
 revise approach/
