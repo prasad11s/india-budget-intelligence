@@ -412,3 +412,9 @@ Ran the planned cross-year check in the deployed Streamlit app, asked two year-s
 Root cause: retrieval is pure semantic similarity with no year-based filtering, and specific years like "2020" or "2021" are weak lexical signals against strong, frequent topic words like "education" or "defence" that recur across decades of speeches. This is a distinct failure mode from the previously logged inter-context misattribution, that one blends numbers across correctly retrieved years, this one fails to retrieve the correct year at all.
 
 Decision: logging as a known limitation, not fixing today. Scoped fix already identified, ChromaDB metadata filtering on the year field during query, using the already-populated year metadata on every chunk. Consistent with the existing "on the horizon" plan for query routing via metadata filtering, not a new architecture decision, just a concrete trigger for one already planned.
+
+59. Live deployment confirmed working on Streamlit Community Cloud
+
+Resolved the Cloud NotFoundError, root cause was git's core.autocrlf silently altering binary chromadb files during commit on Windows. Added .gitattributes marking chroma_db's files as binary, removed and re-added them so git stored genuine byte-exact copies, verified via SHA256 hash comparison between the working file and a fresh clone's checked-out version before pushing. Also fixed two related gaps surfaced only by testing locally: the pysqlite3 shim crashing when the package isn't installed locally, and the secrets check crashing rather than falling through when no secrets.toml exists at all, both made defensive rather than assuming a single environment.
+
+Confirmed live: golden-set question "fiscal deficit in BE 2026-27" returns the correct 4.3 percent of GDP with accurate sources. Year-filtering retrieval gap (note 55) reconfirmed a third time on an unrelated query, "fiscal deficit in BE 1950," consistent with prior findings, not a new issue.
