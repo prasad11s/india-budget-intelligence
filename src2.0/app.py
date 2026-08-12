@@ -100,7 +100,7 @@ if question:
         answer, sources = st.session_state.answer_cache[question]
     elif is_smalltalk(question):
         answer = (
-            "Hi! I can answer questions about Union Budget speeches from "`
+            "Hi! I can answer questions about Union Budget speeches from "
             "1947-48 to 2025-26. ask about a specific year, finance minister, "
             "tax proposal, or fiscal figure."
         )
