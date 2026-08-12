@@ -45,6 +45,15 @@ def retrieve_chunks(question):
     results = collection.query(query_embeddings=[query_vector], n_results=TOP_K)
     return results["documents"][0], results["metadatas"][0]
 
+SMALLTALK = {
+    "hi", "hii", "hello", "hey", "yo",
+    "good morning", "good afternoon", "good evening",
+    "thanks", "thank you", "bye", "goodbye", "ok", "okay"
+}
+
+def is_smalltalk(question):
+    return question.strip().lower().rstrip("!?.") in SMALLTALK
+
 def format_sources(metadatas):
     lines = []
     for m in metadatas:
@@ -70,7 +79,7 @@ Question: {question}"""
     )
     return response.choices[0].message.content
 
-st.title("India Budget Intelligence — Union Budget Speeches, 1947–2025")
+st.title("India Budget Intelligence: Union Budget Speeches, 1947–2025")
 st.caption("Covers Union Budget speeches from 1947-48 to 2025-26.")
 
 for msg in st.session_state.messages:
@@ -89,6 +98,13 @@ if question:
 
     if question in st.session_state.answer_cache:
         answer, sources = st.session_state.answer_cache[question]
+    elif is_smalltalk(question):
+        answer = (
+            "Hi! I can answer questions about Union Budget speeches from "`
+            "1947-48 to 2025-26. ask about a specific year, finance minister, "
+            "tax proposal, or fiscal figure."
+        )
+        sources = ""
     else:
         chunks, metadatas = retrieve_chunks(question)
         answer = generate_answer(question, chunks)
@@ -98,5 +114,6 @@ if question:
     st.session_state.messages.append({"role": "assistant", "content": answer, "sources": sources})
     with st.chat_message("assistant"):
         st.write(answer)
-        with st.expander("Sources"):
-            st.markdown(sources)
+        if sources:
+            with st.expander("Sources"):
+                st.markdown(sources)
