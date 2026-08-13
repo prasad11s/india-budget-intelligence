@@ -2,3 +2,4 @@ streamlit
 chromadb
 openai
 pysqlite3-binary
+rank_bm25

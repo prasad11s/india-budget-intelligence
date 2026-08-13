@@ -409,7 +409,7 @@ Result: full Union Budget speech corpus, 1947-48 through 2025-26, with no known 
 
 Ran the planned cross-year check in the deployed Streamlit app, asked two year-specific questions with no year in the retrieved-chunk metadata matching the asked year, "education budget in year 2021" retrieved chunks from 1998-99, 1955-56, 1993-94, 1954-55, and 1991-92, none within a decade of the asked year. Same pattern on "defence budget in 2020." System correctly returned "insufficient data" rather than fabricate an answer from the wrong-year chunks, so the safety fallback held.
 
-Root cause: retrieval is pure   semantic similarity with no year-based filtering, and specific years like "2020" or "2021" are weak lexical signals against strong, frequent topic words like "education" or "defence" that recur across decades of speeches. This is a distinct failure mode from the previously logged inter-context misattribution, that one blends numbers across correctly retrieved years, this one fails to retrieve the correct year at all.
+Root cause: retrieval is pure semantic similarity with no year-based filtering, and specific years like "2020" or "2021" are weak lexical signals against strong, frequent topic words like "education" or "defence" that recur across decades of speeches. This is a distinct failure mode from the previously logged inter-context misattribution, that one blends numbers across correctly retrieved years, this one fails to retrieve the correct year at all.
 
 Decision: logging as a known limitation, not fixing today. Scoped fix already identified, ChromaDB metadata filtering on the year field during query, using the already-populated year metadata on every chunk. Consistent with the existing "on the horizon" plan for query routing via metadata filtering, not a new architecture decision, just a concrete trigger for one already planned.
 
@@ -418,3 +418,116 @@ Decision: logging as a known limitation, not fixing today. Scoped fix already id
 Resolved the Cloud NotFoundError, root cause was git's core.autocrlf silently altering binary chromadb files during commit on Windows. Added .gitattributes marking chroma_db's files as binary, removed and re-added them so git stored genuine byte-exact copies, verified via SHA256 hash comparison between the working file and a fresh clone's checked-out version before pushing. Also fixed two related gaps surfaced only by testing locally: the pysqlite3 shim crashing when the package isn't installed locally, and the secrets check crashing rather than falling through when no secrets.toml exists at all, both made defensive rather than assuming a single environment.
 
 Confirmed live: golden-set question "fiscal deficit in BE 2026-27" returns the correct 4.3 percent of GDP with accurate sources. Year-filtering retrieval gap (note 55) reconfirmed a third time on an unrelated query, "fiscal deficit in BE 1950," consistent with prior findings, not a new issue.
+
+60. Launch-readiness pass: greeting/small-talk bug fixed in app.py
+
+Decision: added an is_smalltalk() check in app.py that runs before retrieval fires. Greetings and short acknowledgments ("hi," "thanks," "bye," etc.) now return a canned intro message instead of going through embedding + retrieval + generation.
+
+Why: every input, including a bare "hi," was going through the full RAG path and correctly returning "insufficient data" since nothing relevant exists to retrieve for small talk. Technically correct, poor first impression, and a wasted API call on every greeting. Fixed with a cheap string-match gate rather than a classifier, since the small talk vocabulary is small and fixed. Also removed em dashes from user-facing strings (title, greeting message) per writing standard applied elsewhere in the project.
+
+61. Retrieval diagnostic script built, two distinct failure modes confirmed with evidence
+
+Built 0.1_bs_retrieval_diagnostics.py in dev/, retrieval-only, no generation call, to inspect actual retrieved chunks and cosine distances for known-failing questions before building any fix.
+
+Findings:
+- "How many parts is the budget divided into" — distances 0.88-0.99, no retrieved chunk directly answers the question despite the answer existing in the corpus (Part A/Part B is stated explicitly in speeches). Recall gap, not a synonym issue.
+- "Roads" — distances 0.79-0.86, all five chunks genuinely relevant. Dense retrieval performing well here.
+- "Transportation" — distances 0.88-0.97, worse than "roads," pulled a partially different and partially irrelevant chunk set (one false positive from an unrelated power-sector chunk). Confirms synonym-mismatch failure mode.
+- "Compare 2025 budget with 2015 budget" — distances 0.97-1.05, worst of the four, retrieved chunks from neither target year cleanly. Confirms that a single embedding for a multi-year question lands in a semantic middle ground that matches no specific year well.
+
+Why this matters: confirms this is a retrieval problem, not a generation problem, since the system prompt already only allows the LLM to answer from provided context. Establishes two separate root causes needing two separate fixes: recall/synonym gaps (candidate fix: hybrid retrieval, dense + BM25) and multi-year dilution (candidate fix: query decomposition, retrieve per year and merge).
+
+62. Real-user testing (three friends) used in place of a synthetic test sweep
+
+Decision: skipped writing a fresh synthetic test question list. Used three friends' unscripted questions as the test set instead, since they surfaced real phrasing and real failure patterns rather than patterns anticipated in advance.
+
+Findings, categorized:
+- Discoverability gap, not a retrieval bug: one friend had no starting point for what to ask. Fix identified: add example questions to the Streamlit UI. Not yet built.
+- Two-year comparison and vague "some questions about tax" prompts: comparison confirmed as the query decomposition problem from note 61. Vague prompts are a discoverability problem in disguise, same fix applies.
+- "How many parts is the budget divided into": confirmed as the recall gap from note 61.
+- Multi-year span questions ("tax rates 1947 to 2025," "biggest reduction across all budgets," "highest rate across all budgets"): consistent with the already-documented structural retrieval ceiling for aggregation queries, not a new issue. Correctly triggering "insufficient data" rather than hallucinating, not yet separately verified per-question, worth a quick confirmation pass.
+
+63. LangChain, LangGraph, and Nemotron adoption deferred, hand-building retrieval fixes instead
+
+Decision: building hybrid retrieval, metadata filtering, and reranking by hand rather than via LangChain, for this pass. LangGraph and Nemotron evaluation deferred entirely to post-launch.
+
+Why: the project's purpose at this stage is demonstrating understanding of retrieval mechanics for interviews, which is better served by writing the fusion logic directly than by importing a working implementation. Reuse is the right call for production work, not necessarily for a portfolio piece whose value is explaining the mechanism. Revisit LangChain/LangGraph/Nemotron once the hand-built version is working and documented, as a deliberate "here's what a framework would have replaced" comparison rather than a swap made under launch time pressure.
+
+64. Documentation plan: retrieval and model comparison docs, following the chunking comparison pattern
+
+Decision: plan to produce a retrieval-strategy comparison document (dense vs. BM25 vs. hybrid vs. metadata-filtered) and eventually a model comparison document (GPT-4o-mini vs. Nemotron vs. others), with visuals, mirroring the existing 4-variant chunking comparison.
+
+Why: the chunking comparison is a stronger portfolio artifact than the RAG app alone, since it demonstrates evaluation methodology rather than just implementation. Explicitly sequenced after the underlying retrieval work is built and measured, not written speculatively ahead of having real numbers, to avoid it becoming a list of plans rather than findings.
+
+65. Multi-year thematic aggregation ("what has the government done for education since independence") identified as a distinct, harder problem
+
+Flagged as separate from both the year-filtering gap (note 58) and the two-year comparison problem (note 61). This class of question requires per-year extraction across the full 1947-2025 span (identify education-related content in every one of ~93 speeches), not a single retrieval call against any k. Structurally similar to the already-backlogged Phase 3b structured extraction problem, but broader in scope, span-based rather than numeric-aggregation-based. Logged as future work, not in scope for the current launch pass.
+
+66. Retrieval comparison methodology decided before building any variant
+
+Decision: test dense-only, BM25-only, hybrid (dense+BM25 fused), and metadata-filtered retrieval against a fixed question set, written before building any variant, same discipline as the original 4-variant chunking comparison. Question set deliberately includes both year-present and year-absent versions of the same underlying question (e.g. "what did the budget say about roads" vs "what did the 2016-17 budget say about roads"), since metadata filtering only exercises its logic when a year is present; testing only year-bearing questions would make metadata filtering indistinguishable from dense-only in the comparison.
+
+Clarifying-question UX (asking the user to specify a year when a year-sensitive question has none) identified as a distinct, later feature, not part of this comparison. It corresponds to the "Query Classification" step in the original PROJECT_SCOPE.md query pipeline (Section 7.3), sitting in front of retrieval rather than being a retrieval method itself. Deferred until after the comparison confirms which retrieval approach is worth building the clarification step in front of, so UX design isn't decided ahead of the evidence.
+
+67. Retrieval comparison, dense-only baseline run against full 10-question set
+
+Ran 0.2_bs_retrieval_dense.py, dense-only ChromaDB search, formalizing the earlier ad hoc diagnostic into a complete, saved baseline (results_dense.json) against all 10 locked questions. Confirmed prior diagnostic findings were repeatable, not a fluke. Surfaced two new failure patterns not seen in the smaller diagnostic run: boilerplate year-discrimination (near-identical title-page text across years causing weak year matching, e.g. "who presented Budget 2026-2027") and correct-chunk-ranked-too-low (right answer present in top 5 but not top-ranked, e.g. STT rate question).
+
+68. BM25-only variant, two real bugs found and fixed before results were trustworthy
+
+First run of 0.3_bs_retrieval_bm25.py used `.lower().split()` as the tokenizer, which failed to strip trailing punctuation from questions ending in "?". This silently broke every question where the key topic word was the last word before the question mark ("roads?", "transportation?"), causing those queries to score almost entirely on filler words and return near-identical, irrelevant top-5 results across genuinely different questions. Root cause confirmed by adding a matched_terms diagnostic (which query tokens actually appear in each retrieved chunk) rather than trusting truncated text previews, which had been masking the problem.
+
+Fix 1: switched tokenizer to a regex word extractor (`re.findall(r"\b\w+\b", text.lower())`) to strip punctuation correctly.
+Fix 2: added a hand-picked STOPWORDS set (question words, articles, common connectives) after confirming, via matched_terms, that "roads" and "transportation" (no year) were still losing to filler-word overlap even after the punctuation fix. Removing stopwords from scoring let BM25 correctly surface genuine roads/transportation content and fixed the boilerplate year-discrimination issue from note 67 as a side effect.
+
+Why this matters: this is the same lesson as note 6 and the diagnostic-printing fix, applied to a new tool. An evaluation script's own blind spots (truncated previews, unstripped punctuation) can look identical to a real retrieval failure. Confirmed root cause with direct evidence (matched terms) before changing any retrieval logic, rather than assuming.
+
+69. Hybrid retrieval (dense + BM25 fused via RRF) tested, modest and mixed result
+
+Built 0.4_bs_retrieval_hybrid.py, dense and BM25 candidate pools (20 each) fused by reciprocal rank fusion. Result: no meaningful improvement over stopword-fixed BM25 alone on the synonym-mismatch questions (roads/transportation), since both methods had already converged on the same correct chunks independently. One real cost surfaced: fusion let through one BM25-only false positive (an unrelated "performing artist" tax-exemption chunk matching only on the bare word "transportation") that dense retrieval alone had correctly excluded. Confirmed hybrid's fusion mechanism did not touch the two structural failures (Q1, and the two-year comparison question), consistent with the earlier prediction that neither is a ranking problem.
+
+Conclusion: most of this session's real improvement came from fixing BM25's tokenizer and stopwords, not from the fusion step itself.
+
+70. Metadata filtering with year extraction and two-year decomposition, confirmed working, the strongest single result of this comparison
+
+Built 0.5_bs_retrieval_metadata.py: regex-based year extraction from the question (handles both "2016-17" dash form and standalone "2025" form), a year_to_metadata_candidates() helper generating both known metadata year formats present in the corpus (old six-digit concatenated style e.g. "201617", and new underscore style e.g. "2026_27", since the corpus format changed partway through, per CHANGELOG's 2023-onward URL pattern note), and ChromaDB `where={"year": {"$in": candidates}}` filtering before dense search.
+
+For single-year questions (2016-17 roads, 2008-09 transportation): all 5 results now correctly confined to the target year, tighter distances, no cross-year dilution.
+
+For the two-year comparison question (2025 vs 2015): both years detected, two separate filtered retrievals run and merged, 5 results genuinely relevant from each year. This is the first variant across the entire comparison to actually solve the two-year dilution problem identified in note 61, confirming query decomposition, not better ranking within a single retrieval call, was the correct fix.
+
+One caveat logged, not yet acted on: this only proves retrieval quality, not confirmed that generate_answer correctly synthesizes a coherent comparison from double the normal context (5+5 chunks instead of 5).
+
+71. Metadata filtering + hybrid combined, built and tested, confirmed no additional benefit
+
+Built 0.6_bs_retrieval_metadata_hybrid.py: year-filtered subset first, then dense + BM25 fused within that subset only, rather than across the full corpus.
+
+Result: identical to metadata-only on the questions metadata filtering had already fixed (2016-17 roads, who presented 2026-27). Mild regression noted on the two-year comparison question, several less directly relevant chunks (tangential DTC/Finance Bill content) ranked into the top 5 on the 2015-16 side versus metadata-only's cleaner, more directly relevant results, likely because BM25 has fewer genuinely distinguishing candidates to rank against once the pool is already narrowed by year.
+
+Conclusion: the win in this pipeline comes specifically from correctly identifying and filtering to the right year(s), not from adding hybrid fusion on top of an already-filtered set. Once metadata filtering narrows the field sufficiently, dense-only search is enough; BM25 has no differentiated pool left to meaningfully improve on it.
+
+72. Stemming tested in isolation against the Q1 "how many parts" recall gap, closed the token gap, confirmed the underlying problem is not tokenization
+
+Built 0.7_bs_retrieval_bm25_stemmed.py, added nltk PorterStemmer to the existing stopword-filtered BM25 tokenizer as the one new variable, applied identically to corpus and queries. Confirmed "parts" and "part" now stem to the same token and a new candidate chunk surfaced that plain BM25 had missed. On inspection, that chunk's use of "part" was the idiom "on our part," unrelated to budget structure, not the Part A/Part B fact being asked about.
+
+Conclusion, and the more important finding: Q1 was never a token-matching problem. The fact (the budget speech is structurally divided into Part A and Part B) is expressed through section headers ("PART B") captured in chunk text, not through prose that plainly states the fact. No retrieval method, however tuned, can score a match on a statement that was never written in the corpus as a sentence about its own topic. Confirms this needs structure-aware handling (treating section headers as data, not prose) rather than further retrieval tuning, or is simply out of scope pending the full budget documents (which per DATA_CATALOG.md, Section 2, were explicitly deferred from MVP and may be what the question was actually asking about, i.e. document-level structure, not speech-level structure). Logged as a distinct, narrower question of scope and ambiguity, not backlogged as an unsolved retrieval problem.
+
+73. Full retrieval comparison closed, six variants tested against a fixed 10-question set, findings summarized
+
+Variants tested: dense-only, BM25-only (post tokenizer/stopword fixes), hybrid, metadata-filtered, metadata+hybrid combined, and stemmed BM25. Two real, evidence-backed wins carried forward: (1) stopword-filtered BM25 fixed the synonym/filler-word-domination failure mode; (2) metadata filtering with year-based query decomposition fixed the two-year comparison failure mode. Two failures conclusively confirmed as out of scope for retrieval tuning entirely: Q1 (structural/document-format ambiguity, note 72) and the general multi-year thematic aggregation class (note 65). Hybrid fusion and its combination with metadata filtering both tested and found to add negligible to slightly negative value at current corpus scale and question set, a real, useful negative finding for the eventual comparison document, not a wasted build.
+
+Reranking identified via research as the current production-standard complement to hybrid retrieval, but deprioritized for now since none of the confirmed failures in this corpus are precision/ranking problems (right chunk retrieved but ranked too low) that reranking would address.
+
+74. Next-phase sequencing decided: LangGraph-based per-year loop prioritized over new retrieval combinations, remaining data collection, and analytics
+
+Decision: build a LangGraph-style per-year retrieval-extraction-aggregation-synthesis loop next, ahead of further retrieval combination testing, ahead of collecting Economic Survey/full budget document data, and ahead of the analytics track (sentiment, tone, language pattern detection).
+
+Why: this loop is the one path that unlocks genuinely new capability (multi-year trend and comparison questions, e.g. "agriculture spending trend across all years," "2001-13 vs 2014-25") on data already fully in hand, no new ingestion required. Further retrieval combinations (reranking) have no confirmed failure to address. Remaining data collection is real, valuable, but independent and can proceed on its own track without blocking this. Scheme lifecycle tracking (renamed/discontinued schemes) identified as a distinct, harder problem needing named-entity recognition and cross-year entity resolution, not solved by the per-year loop alone, logged as its own future phase. Analytics track (sentiment, tone, Hindi/Sanskrit word usage) confirmed to map directly onto the original PROJECT_SCOPE.md Phase 5 (Analytics Layer) and logged as intentionally deferred, not forgotten.
+
+75. Retrieval comparison document created and stored separately
+
+Created retrieval_comparison.md (not part of src2.0/dev/, kept as a standalone deliverable alongside the project's other documentation) covering all 7 tested variants against the fixed 10-question set, with per-question results, real top-result metric values (not just pass/fail), a legend explaining the four distinct, non-comparable scoring scales in play (cosine distance, BM25 score, RRF fused score, LangChain unscored), and a stated recommendation: deploy metadata filtering with year-based decomposition, falling back to stopword-filtered hybrid (dense+BM25) when no year is detected.
+
+76. Clarifying-question UX (deferred in note 66) implemented, now that the winning retrieval method is confirmed
+
+Per note 66's decision to defer the "ask the user which year" feature until the retrieval comparison settled which method it should sit in front of: implemented in app.py. When a year-sensitive question has no year detected, the app now asks the user to specify a year or say "all years," rather than silently guessing or running unfiltered. Two-year decomposition (note 70) and stopword-filtered hybrid fallback (note 68/69) both wired into this flow. Known limitation, accepted rather than special-cased: this will also prompt for a year on Q1-style structural questions ("how many parts is the budget divided into") where a year wouldn't actually help, since no separate ambiguity-detection logic was built for that narrower case.

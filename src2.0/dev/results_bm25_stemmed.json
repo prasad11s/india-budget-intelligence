@@ -1,0 +1,549 @@
+[
+  {
+    "question": "How many parts is the budget divided into?",
+    "retrieved": [
+      {
+        "id": "200405_bs200405.pdf_0088",
+        "year": "200405",
+        "score": 11.786347219396685,
+        "matched_terms": [
+          "mani",
+          "budget",
+          "divid"
+        ]
+      },
+      {
+        "id": "200102_bs200102.pdf_0135",
+        "year": "200102",
+        "score": 9.449352883467643,
+        "matched_terms": [
+          "mani",
+          "divid"
+        ]
+      },
+      {
+        "id": "199495_bs199495.pdf_0116",
+        "year": "199495",
+        "score": 8.668420344259228,
+        "matched_terms": [
+          "divid"
+        ]
+      },
+      {
+        "id": "194748_bs194748.pdf_0078",
+        "year": "194748",
+        "score": 8.642648084324168,
+        "matched_terms": [
+          "part",
+          "divid"
+        ]
+      },
+      {
+        "id": "196768(I)_bs196768(I).pdf_0053",
+        "year": "196768(I)",
+        "score": 8.456487179438373,
+        "matched_terms": [
+          "mani",
+          "part",
+          "budget"
+        ]
+      }
+    ]
+  },
+  {
+    "question": "What did the budget say about roads?",
+    "retrieved": [
+      {
+        "id": "201617_bs201617.pdf_0056",
+        "year": "201617",
+        "score": 7.60326051690959,
+        "matched_terms": [
+          "budget",
+          "road"
+        ]
+      },
+      {
+        "id": "201617_bs201617.pdf_0055",
+        "year": "201617",
+        "score": 7.335505646989895,
+        "matched_terms": [
+          "budget",
+          "road"
+        ]
+      },
+      {
+        "id": "201718_bs201718.pdf_0060",
+        "year": "201718",
+        "score": 7.208035933617428,
+        "matched_terms": [
+          "budget",
+          "road"
+        ]
+      },
+      {
+        "id": "201516_bs201516.pdf_0115",
+        "year": "201516",
+        "score": 7.174849049927355,
+        "matched_terms": [
+          "budget",
+          "road"
+        ]
+      },
+      {
+        "id": "197980_bs197980.pdf_0053",
+        "year": "197980",
+        "score": 7.112311857368106,
+        "matched_terms": [
+          "road"
+        ]
+      }
+    ]
+  },
+  {
+    "question": "What did the 2016-17 budget say about roads?",
+    "retrieved": [
+      {
+        "id": "201617_bs201617.pdf_0056",
+        "year": "201617",
+        "score": 19.493838951636576,
+        "matched_terms": [
+          "2016",
+          "17",
+          "budget",
+          "road"
+        ]
+      },
+      {
+        "id": "201718_bs201718.pdf_0060",
+        "year": "201718",
+        "score": 14.01322164086,
+        "matched_terms": [
+          "2016",
+          "17",
+          "budget",
+          "road"
+        ]
+      },
+      {
+        "id": "201617_bs201617.pdf_0028",
+        "year": "201617",
+        "score": 13.961307390410859,
+        "matched_terms": [
+          "2016",
+          "17",
+          "budget"
+        ]
+      },
+      {
+        "id": "201718_bs201718.pdf_0028",
+        "year": "201718",
+        "score": 13.878036507697175,
+        "matched_terms": [
+          "2016",
+          "17",
+          "budget"
+        ]
+      },
+      {
+        "id": "201617_bs201617.pdf_0027",
+        "year": "201617",
+        "score": 13.498819987902131,
+        "matched_terms": [
+          "2016",
+          "17",
+          "road"
+        ]
+      }
+    ]
+  },
+  {
+    "question": "What did the budget say about transportation?",
+    "retrieved": [
+      {
+        "id": "200910_bs200910.pdf_0128",
+        "year": "200910",
+        "score": 8.291228080777524,
+        "matched_terms": [
+          "budget",
+          "transport"
+        ]
+      },
+      {
+        "id": "201617_bs201617.pdf_0212",
+        "year": "201617",
+        "score": 7.877126772923619,
+        "matched_terms": [
+          "budget",
+          "transport"
+        ]
+      },
+      {
+        "id": "198687_bs198687.pdf_0078",
+        "year": "198687",
+        "score": 7.849893115051051,
+        "matched_terms": [
+          "budget",
+          "transport"
+        ]
+      },
+      {
+        "id": "201617_bs201617.pdf_0211",
+        "year": "201617",
+        "score": 7.387141485967476,
+        "matched_terms": [
+          "budget",
+          "transport"
+        ]
+      },
+      {
+        "id": "200910_bs200910.pdf_0126",
+        "year": "200910",
+        "score": 7.1941792030763425,
+        "matched_terms": [
+          "transport"
+        ]
+      }
+    ]
+  },
+  {
+    "question": "What did the 2008-09 budget say about transportation?",
+    "retrieved": [
+      {
+        "id": "200809_bs200809.pdf_0000",
+        "year": "200809",
+        "score": 16.624510314238957,
+        "matched_terms": [
+          "2008",
+          "09",
+          "budget"
+        ]
+      },
+      {
+        "id": "200809_bs200809.pdf_0048",
+        "year": "200809",
+        "score": 16.40159013220648,
+        "matched_terms": [
+          "2008",
+          "09",
+          "budget"
+        ]
+      },
+      {
+        "id": "200910_bs200910.pdf_0081",
+        "year": "200910",
+        "score": 16.38022639351507,
+        "matched_terms": [
+          "2008",
+          "09"
+        ]
+      },
+      {
+        "id": "200809_bs200809.pdf_0018",
+        "year": "200809",
+        "score": 16.355222269671806,
+        "matched_terms": [
+          "2008",
+          "09",
+          "budget"
+        ]
+      },
+      {
+        "id": "200809_bs200809.pdf_0024",
+        "year": "200809",
+        "score": 16.17239775659774,
+        "matched_terms": [
+          "2008",
+          "09",
+          "budget"
+        ]
+      }
+    ]
+  },
+  {
+    "question": "Compare the 2025 budget with the 2015 budget.",
+    "retrieved": [
+      {
+        "id": "2025_26_bs2025_26.pdf_0000",
+        "year": "2025_26",
+        "score": 14.445841359824033,
+        "matched_terms": [
+          "2025",
+          "budget"
+        ]
+      },
+      {
+        "id": "2026_27_bs2026_27.pdf_0059",
+        "year": "2026_27",
+        "score": 13.068840102886602,
+        "matched_terms": [
+          "compar",
+          "2025",
+          "budget"
+        ]
+      },
+      {
+        "id": "201718_bs201718.pdf_0104",
+        "year": "201718",
+        "score": 12.44248786741242,
+        "matched_terms": [
+          "compar",
+          "budget",
+          "2015"
+        ]
+      },
+      {
+        "id": "201516_bs201516.pdf_0000",
+        "year": "201516",
+        "score": 11.965181930207683,
+        "matched_terms": [
+          "budget",
+          "2015"
+        ]
+      },
+      {
+        "id": "2024_25(I)_bs2024_25(I).pdf_0000",
+        "year": "2024_25(I)",
+        "score": 11.458638323025186,
+        "matched_terms": [
+          "2025",
+          "budget"
+        ]
+      }
+    ]
+  },
+  {
+    "question": "What is the fiscal deficit estimated at in BE 2026-27?",
+    "retrieved": [
+      {
+        "id": "2026_27_bs2026_27.pdf_0060",
+        "year": "2026_27",
+        "score": 21.559379417366642,
+        "matched_terms": [
+          "fiscal",
+          "deficit",
+          "estim",
+          "2026",
+          "27"
+        ]
+      },
+      {
+        "id": "2026_27_bs2026_27.pdf_0061",
+        "year": "2026_27",
+        "score": 20.297196803679086,
+        "matched_terms": [
+          "fiscal",
+          "deficit",
+          "estim",
+          "2026",
+          "27"
+        ]
+      },
+      {
+        "id": "2026_27_bs2026_27.pdf_0059",
+        "year": "2026_27",
+        "score": 17.29408451132877,
+        "matched_terms": [
+          "fiscal",
+          "deficit",
+          "estim",
+          "2026",
+          "27"
+        ]
+      },
+      {
+        "id": "2024_25_bs2024_25.pdf_0061",
+        "year": "2024_25",
+        "score": 17.10408599307028,
+        "matched_terms": [
+          "fiscal",
+          "deficit",
+          "estim",
+          "2026",
+          "27"
+        ]
+      },
+      {
+        "id": "2023_24_bs2023_24.pdf_0069",
+        "year": "2023_24",
+        "score": 16.03513504152955,
+        "matched_terms": [
+          "fiscal",
+          "deficit",
+          "estim",
+          "27"
+        ]
+      }
+    ]
+  },
+  {
+    "question": "What is the new MAT rate proposed, down from what earlier rate?",
+    "retrieved": [
+      {
+        "id": "201718_bs201718.pdf_0103",
+        "year": "201718",
+        "score": 15.914307618665186,
+        "matched_terms": [
+          "mat",
+          "rate",
+          "propos",
+          "down"
+        ]
+      },
+      {
+        "id": "201112_bs201112.pdf_0110",
+        "year": "201112",
+        "score": 14.562973944348204,
+        "matched_terms": [
+          "mat",
+          "rate",
+          "propos"
+        ]
+      },
+      {
+        "id": "2026_27_bs2026_27.pdf_0080",
+        "year": "2026_27",
+        "score": 14.543227277265633,
+        "matched_terms": [
+          "mat",
+          "rate",
+          "propos"
+        ]
+      },
+      {
+        "id": "2026_27_bs2026_27.pdf_0133",
+        "year": "2026_27",
+        "score": 14.538385121104675,
+        "matched_terms": [
+          "mat",
+          "rate",
+          "propos"
+        ]
+      },
+      {
+        "id": "200910_bs200910.pdf_0096",
+        "year": "200910",
+        "score": 14.161347706371105,
+        "matched_terms": [
+          "mat",
+          "rate",
+          "propos"
+        ]
+      }
+    ]
+  },
+  {
+    "question": "Who presented the Budget 2026-2027 speech, and in what role?",
+    "retrieved": [
+      {
+        "id": "2026_27_bs2026_27.pdf_0001",
+        "year": "2026_27",
+        "score": 24.660950075440574,
+        "matched_terms": [
+          "present",
+          "budget",
+          "2026",
+          "2027",
+          "speech"
+        ]
+      },
+      {
+        "id": "2026_27_bs2026_27.pdf_0000",
+        "year": "2026_27",
+        "score": 19.24524562325494,
+        "matched_terms": [
+          "budget",
+          "2026",
+          "2027",
+          "speech"
+        ]
+      },
+      {
+        "id": "201011_bs201011.pdf_0000",
+        "year": "201011",
+        "score": 15.669416141375269,
+        "matched_terms": [
+          "present",
+          "budget",
+          "2026",
+          "speech"
+        ]
+      },
+      {
+        "id": "200910_bs200910.pdf_0000",
+        "year": "200910",
+        "score": 15.596092276220324,
+        "matched_terms": [
+          "present",
+          "budget",
+          "2026",
+          "speech"
+        ]
+      },
+      {
+        "id": "200809_bs200809.pdf_0000",
+        "year": "200809",
+        "score": 15.36714341577126,
+        "matched_terms": [
+          "present",
+          "budget",
+          "2026",
+          "speech"
+        ]
+      }
+    ]
+  },
+  {
+    "question": "What is the new STT rate on Futures, and what was the earlier rate?",
+    "retrieved": [
+      {
+        "id": "200809_bs200809.pdf_0139",
+        "year": "200809",
+        "score": 18.945244447205994,
+        "matched_terms": [
+          "stt",
+          "rate",
+          "futur"
+        ]
+      },
+      {
+        "id": "2026_27_bs2026_27.pdf_0137",
+        "year": "2026_27",
+        "score": 18.434915292886632,
+        "matched_terms": [
+          "stt",
+          "rate",
+          "futur"
+        ]
+      },
+      {
+        "id": "2024_25_bs2024_25.pdf_0154",
+        "year": "2024_25",
+        "score": 18.085509945275696,
+        "matched_terms": [
+          "stt",
+          "rate",
+          "futur"
+        ]
+      },
+      {
+        "id": "2026_27_bs2026_27.pdf_0079",
+        "year": "2026_27",
+        "score": 17.162781061854638,
+        "matched_terms": [
+          "stt",
+          "rate",
+          "futur"
+        ]
+      },
+      {
+        "id": "200809_bs200809.pdf_0138",
+        "year": "200809",
+        "score": 14.646076122814213,
+        "matched_terms": [
+          "stt",
+          "rate"
+        ]
+      }
+    ]
+  }
+]
