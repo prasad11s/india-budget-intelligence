@@ -11,7 +11,6 @@ import configparser
 import streamlit as st
 import chromadb
 from openai import OpenAI
-from rank_bm25 import BM25Okapi
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
@@ -20,16 +19,6 @@ CHROMA_PATH = os.path.join(BASE_DIR, "data", "chroma_db")
 EMBED_MODEL = "text-embedding-3-small"
 CHAT_MODEL = "gpt-4o-mini"
 TOP_K = 5
-CANDIDATE_POOL = 20
-RRF_K = 60
-
-STOPWORDS = {
-    "a", "an", "the", "is", "are", "was", "were", "be", "been", "being",
-    "what", "which", "who", "whom", "how", "why", "when", "where",
-    "did", "do", "does", "doing", "and", "or", "but", "if", "in", "on",
-    "at", "to", "of", "for", "with", "about", "from", "by", "as", "into",
-    "say", "said", "new", "earlier",
-}
 
 SMALLTALK = {
     "hi", "hii", "hello", "hey", "yo",
@@ -66,11 +55,6 @@ def is_smalltalk(question):
     return question.strip().lower().rstrip("!?.") in SMALLTALK
 
 
-def tokenize(text):
-    tokens = re.findall(r"\b\w+\b", text.lower())
-    return [t for t in tokens if t not in STOPWORDS]
-
-
 def extract_years(question):
     """Find years mentioned in the question, as fiscal-year start years (int)."""
     years = set()
@@ -85,11 +69,6 @@ def year_to_metadata_candidates(year):
     """Generate the metadata year strings this fiscal year could be stored as."""
     next_two = str(year + 1)[-2:]
     return [f"{year}{next_two}", f"{year}_{next_two}"]
-
-
-def wants_all_years(text):
-    text = text.strip().lower()
-    return text in {"all years", "all", "general", "any", "any year", "across all years", "no specific year"}
 
 
 def dense_query(question, where=None, n_results=TOP_K):
@@ -111,33 +90,6 @@ def retrieve_chunks_for_years(question, years):
         all_docs.extend(docs)
         all_metas.extend(metas)
     return all_docs, all_metas
-
-
-def hybrid_fallback(question):
-    """Full-corpus hybrid (dense + BM25 fused) search, used when no year is given."""
-    corpus = collection.get(include=["documents", "metadatas"])
-    ids, docs, metas = corpus["ids"], corpus["documents"], corpus["metadatas"]
-
-    vector = openai_client.embeddings.create(input=[question], model=EMBED_MODEL).data[0].embedding
-    dense_results = collection.query(query_embeddings=[vector], n_results=min(CANDIDATE_POOL, len(ids)))
-    dense_ids = dense_results["ids"][0]
-
-    tokenized_corpus = [tokenize(doc) for doc in docs]
-    bm25 = BM25Okapi(tokenized_corpus)
-    scores = bm25.get_scores(tokenize(question))
-    top_indices = sorted(range(len(scores)), key=lambda i: scores[i], reverse=True)[:min(CANDIDATE_POOL, len(ids))]
-    bm25_ids = [ids[i] for i in top_indices]
-
-    fused = {}
-    for rank, cid in enumerate(dense_ids):
-        fused[cid] = fused.get(cid, 0) + 1 / (RRF_K + rank + 1)
-    for rank, cid in enumerate(bm25_ids):
-        fused[cid] = fused.get(cid, 0) + 1 / (RRF_K + rank + 1)
-    top_ids = [cid for cid, _ in sorted(fused.items(), key=lambda x: x[1], reverse=True)[:TOP_K]]
-
-    id_to_doc = dict(zip(ids, docs))
-    id_to_meta = dict(zip(ids, metas))
-    return [id_to_doc[i] for i in top_ids], [id_to_meta[i] for i in top_ids]
 
 
 def format_sources(metadatas):
@@ -167,14 +119,8 @@ Question: {question}"""
     return response.choices[0].message.content
 
 
-CLARIFY_MESSAGE = (
-    "Which year or budget are you asking about? You can name one "
-    "(e.g. '2016-17') or say 'all years' if you'd like me to search broadly."
-)
-CLARIFY_RETRY_MESSAGE = (
-    "I didn't catch a year there. You can name one (e.g. '2016-17') "
-    "or say 'all years' to search broadly."
-)
+CLARIFY_MESSAGE = "Which year or budget are you asking about? For example: '2016-17'."
+CLARIFY_RETRY_MESSAGE = "I didn't catch a year there. Could you give one, e.g. '2016-17'?"
 
 st.title("India Budget Intelligence: Union Budget Speeches, 1947-2025")
 st.caption("Covers Union Budget speeches from 1947-48 to 2025-26.")
@@ -198,11 +144,6 @@ if question:
         years = extract_years(question)
         if years:
             docs, metas = retrieve_chunks_for_years(original_question, years)
-            answer = generate_answer(original_question, docs)
-            sources = format_sources(metas)
-            st.session_state.pending_question = None
-        elif wants_all_years(question):
-            docs, metas = hybrid_fallback(original_question)
             answer = generate_answer(original_question, docs)
             sources = format_sources(metas)
             st.session_state.pending_question = None
