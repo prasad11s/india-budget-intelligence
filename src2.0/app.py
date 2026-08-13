@@ -58,9 +58,9 @@ def is_smalltalk(question):
 def extract_years(question):
     """Find years mentioned in the question, as fiscal-year start years (int)."""
     years = set()
-    for match in re.finditer(r"\b(20\d{2})-(\d{2})\b", question):
+    for match in re.finditer(r"\b(19\d{2}|20\d{2})-(\d{2})\b", question):
         years.add(int(match.group(1)))
-    for match in re.finditer(r"\b(20\d{2})(?:-(\d{4}))?\b", question):
+    for match in re.finditer(r"\b(19\d{2}|20\d{2})(?:-(\d{4}))?\b", question):
         years.add(int(match.group(1)))
     return sorted(years)
 
@@ -90,6 +90,29 @@ def retrieve_chunks_for_years(question, years):
         all_docs.extend(docs)
         all_metas.extend(metas)
     return all_docs, all_metas
+
+
+def rewrite_with_history(question, history):
+    """Resolve a follow-up question into a standalone one using recent chat history."""
+    if not history:
+        return question
+
+    recent = history[-6:]  # last few turns, enough context without bloating the prompt
+    history_text = "\n".join(f"{m['role']}: {m['content']}" for m in recent)
+    prompt = f"""Given this recent conversation and a new follow-up question, rewrite the follow-up as a standalone question that includes any necessary context (topic, year, etc.) from the conversation. If the follow-up is already standalone, return it unchanged. Output only the rewritten question, nothing else.
+
+Conversation:
+{history_text}
+
+Follow-up question: {question}
+
+Standalone question:"""
+    response = openai_client.chat.completions.create(
+        model=CHAT_MODEL,
+        temperature=0,
+        messages=[{"role": "user", "content": prompt}]
+    )
+    return response.choices[0].message.content.strip()
 
 
 def format_sources(metadatas):
@@ -163,16 +186,18 @@ if question:
         answer, sources = st.session_state.answer_cache[question]
 
     else:
-        years = extract_years(question)
+        history = st.session_state.messages[:-1]  # everything before this new user turn
+        resolved_question = rewrite_with_history(question, history)
+        years = extract_years(resolved_question)
         if years:
-            docs, metas = retrieve_chunks_for_years(question, years)
-            answer = generate_answer(question, docs)
+            docs, metas = retrieve_chunks_for_years(resolved_question, years)
+            answer = generate_answer(resolved_question, docs)
             sources = format_sources(metas)
             st.session_state.answer_cache[question] = (answer, sources)
         else:
             answer = CLARIFY_MESSAGE
             sources = ""
-            st.session_state.pending_question = question
+            st.session_state.pending_question = resolved_question
 
     st.session_state.messages.append({"role": "assistant", "content": answer, "sources": sources})
     with st.chat_message("assistant"):
