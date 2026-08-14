@@ -531,3 +531,4 @@ Created retrieval_comparison.md (not part of src2.0/dev/, kept as a standalone d
 76. Clarifying-question UX (deferred in note 66) implemented, now that the winning retrieval method is confirmed
 
 Per note 66's decision to defer the "ask the user which year" feature until the retrieval comparison settled which method it should sit in front of: implemented in app.py. When a year-sensitive question has no year detected, the app now asks the user to specify a year or say "all years," rather than silently guessing or running unfiltered. Two-year decomposition (note 70) and stopword-filtered hybrid fallback (note 68/69) both wired into this flow. Known limitation, accepted rather than special-cased: this will also prompt for a year on Q1-style structural questions ("how many parts is the budget divided into") where a year wouldn't actually help, since no separate ambiguity-detection logic was built for that narrower case.
+

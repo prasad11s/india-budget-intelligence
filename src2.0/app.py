@@ -128,7 +128,9 @@ def format_sources(metadatas):
 
 def generate_answer(question, chunks):
     context = "\n\n---\n\n".join(chunks)
-    prompt = f"""Answer the question using ONLY the context below. If the answer is not in the context, say "insufficient data."
+    prompt = f"""Answer the question using ONLY the context below. You may combine and summarize information across multiple pieces of context to answer general or descriptive questions. When multiple relevant facts are present in the context, include all of them, not just the most prominent one. Only say "insufficient data" if none of the context is relevant to the question, not if the context only partially covers it.
+
+Do not describe something as a "trend," "steady increase," or similar unless the context contains figures from at least three different years supporting that claim. If the context only has data for one or two years, state the specific figures for those years only and say the available data does not cover a full trend.
 
 Context:
 {context}
