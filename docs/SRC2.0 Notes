@@ -532,3 +532,49 @@ Created retrieval_comparison.md (not part of src2.0/dev/, kept as a standalone d
 
 Per note 66's decision to defer the "ask the user which year" feature until the retrieval comparison settled which method it should sit in front of: implemented in app.py. When a year-sensitive question has no year detected, the app now asks the user to specify a year or say "all years," rather than silently guessing or running unfiltered. Two-year decomposition (note 70) and stopword-filtered hybrid fallback (note 68/69) both wired into this flow. Known limitation, accepted rather than special-cased: this will also prompt for a year on Q1-style structural questions ("how many parts is the budget divided into") where a year wouldn't actually help, since no separate ambiguity-detection logic was built for that narrower case.
 
+77. 'All years' hybrid fallback removed from app.py per direct testing feedback
+
+Live testing surfaced three failures right after deploying the clarifying-question flow: a fully vague query ("tell me about the budget") answered "insufficient data" via the hybrid fallback, a bare year typed alone ("2016") with no real question, and a broad two-year comparison retrieving only generic opening-page content. On review, only the first case actually involved the fallback path; the other two were user-input edge cases unrelated to it. Decision made anyway: remove the "all years" fallback and hybrid_fallback() function entirely, forcing a year on every question with no exception path. Tradeoff accepted explicitly: any genuinely valid full-corpus question now has no path to an answer and will loop on the clarifying prompt indefinitely. rank_bm25 import, STOPWORDS, tokenize, CANDIDATE_POOL, and RRF_K removed from app.py as dead code once the fallback was gone.
+
+78. Critical bug found and fixed: year extraction only recognized years starting with "20"
+
+extract_years()'s regex (20\d{2}) silently excluded every year from 1947-1999, more than half the corpus, from ever being detected. Surfaced when a direct "1947-48" response to the clarifying prompt was rejected as "not a year." Fixed by matching 19\d{2}|20\d{2} in both the dash-pattern and standalone-year regexes.
+
+79. Conversational memory gap identified and fixed: retrieval and generation were fully stateless between turns
+
+"And what about the budget 2014" failed despite correct year detection, because generate_answer only ever saw the current question in isolation. Fixed by adding rewrite_with_history(), a separate gpt-4o-mini call resolving a follow-up into a standalone question using the last few turns, run before year extraction and retrieval on every fresh question. Cost tradeoff noted: one extra LLM call per question when prior history exists.
+
+80. Generation over-triggering "insufficient data" on broad/descriptive questions, root-caused and fixed
+
+"Tell me about the 1947 budget" returned "insufficient data" despite retrieving a chunk with real, substantive content. Confirmed via direct inspection of the raw chunk text that this was a generation failure: the prompt was being read as requiring a single chunk to fully answer the question rather than permitting synthesis. Fixed by adding explicit permission to combine and summarize across context, narrowing the refusal condition to "none of the context is relevant."
+
+81. Generation completeness bias found and fixed: model surfaced one fact per chunk, not all of them
+
+"Tell me about any schemes launched in 1947" returned only the Hirakud Dam mention, omitting the Damodar Valley Authority sentence in the same chunk. Confirmed reproducible via a more specific follow-up that successfully surfaced the omitted fact. Fixed by adding "include all of them, not just the most prominent one" to the prompt.
+
+82. Finding logged, not actioned: near-identical question phrasing produces non-overlapping retrieved chunk sets
+
+"Schemes launched in 1947" vs. "schemes in budget of 1947" retrieved completely different, non-overlapping chunk sets, one including the Hirakud Dam/Damodar Valley content, one missing it entirely. Confirms the generation-side fixes (notes 80-81) work correctly but sit on top of a retrieval layer still sensitive enough to minor wording changes that the single most relevant chunk can drop out of top-5 similarity search unpredictably.
+
+83. "Education in 1947 budget" reconfirmed as a correct "insufficient data" response, not a bug
+
+Rerun twice with identical wording, identical result. Cross-checked against raw extracted text: education is mentioned only once, bundled inside a combined multi-sector figure, no education-specific number isolated anywhere in the speech. Confirmed this is the honest answer given the source material.
+
+84. Confirmed real-world instance of the note 77 tradeoff: "when was X launched" has no year to give
+
+"When was the National Literacy Mission launched?" looped on the clarifying prompt indefinitely, since the question asks for a year rather than supplying one. Confirms the tradeoff explicitly accepted in note 77 is live, not theoretical. Logged as related to, but distinct from, scheme lifecycle tracking (named-entity resolution across years), not solved by the per-year loop planned for note 74's LangGraph work.
+
+85. Two-turn clarification flow replaced with single-turn answering, per direct feedback that a second required prompt is unacceptable UX
+
+Redesigned so every question resolves in one turn: rewrite with history, check for a year, year-filtered retrieval if found, hybrid_fallback (reintroduced) automatically if not, generate, answer, with a plain-language note appended only when a year had to be guessed. pending_question session state, the clarify-then-retry logic, and CLARIFY_MESSAGE/CLARIFY_RETRY_MESSAGE all removed as dead code once the two-turn flow was gone.
+
+86. Rewrite step found to be merging unrelated conversation context into standalone questions, root-caused with a visible diagnostic, then fixed
+
+"Tell me about the budget," asked after an unrelated education/2015 exchange, returned the prior answer's exact content and sources. Rather than guessing, added a temporary "(interpreted as: ...)" suffix to the answer so the actual output of rewrite_with_history was directly visible. Confirmed the rewrite prompt lacked any instruction for distinguishing a genuine follow-up from a new, unrelated question, so it defaulted to merging context indiscriminately. Fixed by rewriting the prompt to require an explicit classification step (follow-up vs. standalone) before deciding whether to modify the question at all, with an instruction to return unrelated questions unchanged. Re-verified against the full failing sequence: schemes/1947 returned to its correct answer, "what about 2015" still resolved correctly as a genuine follow-up, no cross-contamination observed afterward.
+
+87. Confidence-based caveat and discoverability fix added as the session's final change; one path left unverified
+
+Searched current best practices for handling vague/ambiguous RAG queries. Selected two methods fitting the no-second-turn constraint: (1) using the retrieval distance itself as an honesty signal, appending a stronger caveat naming specific example topics when the best match is genuinely weak (distance > 0.9, threshold set from tonight's own observed data), rather than the softer "try naming a year" note; (2) adding example questions to the UI, the discoverability fix flagged since the earliest friend-testing round, to reduce how often an ultra-vague question gets typed at all.
+
+On testing, "tell me about the budget" did not exercise the new caveat logic at all: rewrite_with_history resolved it to "the Union Budget for the year 2025-26," defaulting an unanchored temporal reference to "most recent" with zero prior conversation justifying that year. This produced a good, specific answer, but routed through year-filtered retrieval rather than hybrid_fallback, leaving the confidence-caveat threshold unexercised. Not treated as a problem tonight, since the outcome was better than either designed path, but logged as open: confirm the caveat fires correctly on a question the rewrite step cannot default a year onto, and decide whether "defaults to most recent year" is desired, documented behavior or an accident worth constraining.
+

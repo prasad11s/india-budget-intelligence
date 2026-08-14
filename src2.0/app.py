@@ -11,6 +11,7 @@ import configparser
 import streamlit as st
 import chromadb
 from openai import OpenAI
+from rank_bm25 import BM25Okapi
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
@@ -19,6 +20,16 @@ CHROMA_PATH = os.path.join(BASE_DIR, "data", "chroma_db")
 EMBED_MODEL = "text-embedding-3-small"
 CHAT_MODEL = "gpt-4o-mini"
 TOP_K = 5
+CANDIDATE_POOL = 20
+RRF_K = 60
+
+STOPWORDS = {
+    "a", "an", "the", "is", "are", "was", "were", "be", "been", "being",
+    "what", "which", "who", "whom", "how", "why", "when", "where",
+    "did", "do", "does", "doing", "and", "or", "but", "if", "in", "on",
+    "at", "to", "of", "for", "with", "about", "from", "by", "as", "into",
+    "say", "said", "new", "earlier",
+}
 
 SMALLTALK = {
     "hi", "hii", "hello", "hey", "yo",
@@ -47,12 +58,15 @@ if "messages" not in st.session_state:
     st.session_state.messages = []
 if "answer_cache" not in st.session_state:
     st.session_state.answer_cache = {}
-if "pending_question" not in st.session_state:
-    st.session_state.pending_question = None
 
 
 def is_smalltalk(question):
     return question.strip().lower().rstrip("!?.") in SMALLTALK
+
+
+def tokenize(text):
+    tokens = re.findall(r"\b\w+\b", text.lower())
+    return [t for t in tokens if t not in STOPWORDS]
 
 
 def extract_years(question):
@@ -99,20 +113,54 @@ def rewrite_with_history(question, history):
 
     recent = history[-6:]  # last few turns, enough context without bloating the prompt
     history_text = "\n".join(f"{m['role']}: {m['content']}" for m in recent)
-    prompt = f"""Given this recent conversation and a new follow-up question, rewrite the follow-up as a standalone question that includes any necessary context (topic, year, etc.) from the conversation. If the follow-up is already standalone, return it unchanged. Output only the rewritten question, nothing else.
+    prompt = f"""Given this recent conversation and a new question, decide if the new question is a follow-up that depends on the conversation (uses words like "it," "that," "what about," "and," or omits a topic/year mentioned earlier) or if it is a complete, standalone question on its own topic.
+
+If it is a follow-up, rewrite it as a standalone question that includes the necessary context (topic, year, etc.) from the conversation.
+
+If it is already standalone, or introduces a new topic unrelated to the conversation, return it EXACTLY as written, unchanged. Do not add context from the conversation to a question that does not need it.
+
+Output only the resulting question, nothing else.
 
 Conversation:
 {history_text}
 
-Follow-up question: {question}
+New question: {question}
 
-Standalone question:"""
+Resulting question:"""
     response = openai_client.chat.completions.create(
         model=CHAT_MODEL,
         temperature=0,
         messages=[{"role": "user", "content": prompt}]
     )
     return response.choices[0].message.content.strip()
+
+
+def hybrid_fallback(question):
+    """Full-corpus hybrid (dense + BM25 fused) search, used when no year could be determined."""
+    corpus = collection.get(include=["documents", "metadatas"])
+    ids, docs, metas = corpus["ids"], corpus["documents"], corpus["metadatas"]
+
+    vector = openai_client.embeddings.create(input=[question], model=EMBED_MODEL).data[0].embedding
+    dense_results = collection.query(query_embeddings=[vector], n_results=min(CANDIDATE_POOL, len(ids)))
+    dense_ids = dense_results["ids"][0]
+    best_distance = dense_results["distances"][0][0] if dense_results["distances"][0] else 1.0
+
+    tokenized_corpus = [tokenize(doc) for doc in docs]
+    bm25 = BM25Okapi(tokenized_corpus)
+    scores = bm25.get_scores(tokenize(question))
+    top_indices = sorted(range(len(scores)), key=lambda i: scores[i], reverse=True)[:min(CANDIDATE_POOL, len(ids))]
+    bm25_ids = [ids[i] for i in top_indices]
+
+    fused = {}
+    for rank, cid in enumerate(dense_ids):
+        fused[cid] = fused.get(cid, 0) + 1 / (RRF_K + rank + 1)
+    for rank, cid in enumerate(bm25_ids):
+        fused[cid] = fused.get(cid, 0) + 1 / (RRF_K + rank + 1)
+    top_ids = [cid for cid, _ in sorted(fused.items(), key=lambda x: x[1], reverse=True)[:TOP_K]]
+
+    id_to_doc = dict(zip(ids, docs))
+    id_to_meta = dict(zip(ids, metas))
+    return [id_to_doc[i] for i in top_ids], [id_to_meta[i] for i in top_ids], best_distance
 
 
 def format_sources(metadatas):
@@ -144,11 +192,13 @@ Question: {question}"""
     return response.choices[0].message.content
 
 
-CLARIFY_MESSAGE = "Which year or budget are you asking about? For example: '2016-17'."
-CLARIFY_RETRY_MESSAGE = "I didn't catch a year there. Could you give one, e.g. '2016-17'?"
-
 st.title("India Budget Intelligence: Union Budget Speeches, 1947-2025")
 st.caption("Covers Union Budget speeches from 1947-48 to 2025-26.")
+st.caption(
+    "Try: \"What did the 2016-17 budget say about roads?\" · "
+    "\"Compare education spending in 2013 and 2014\" · "
+    "\"What is the fiscal deficit in BE 2026-27?\""
+)
 
 for msg in st.session_state.messages:
     with st.chat_message(msg["role"]):
@@ -164,19 +214,7 @@ if question:
     with st.chat_message("user"):
         st.write(question)
 
-    if st.session_state.pending_question:
-        original_question = st.session_state.pending_question
-        years = extract_years(question)
-        if years:
-            docs, metas = retrieve_chunks_for_years(original_question, years)
-            answer = generate_answer(original_question, docs)
-            sources = format_sources(metas)
-            st.session_state.pending_question = None
-        else:
-            answer = CLARIFY_RETRY_MESSAGE
-            sources = ""
-
-    elif is_smalltalk(question):
+    if is_smalltalk(question):
         answer = (
             "Hi! I can answer questions about Union Budget speeches from "
             "1947-48 to 2025-26. Ask about a specific year, finance minister, "
@@ -194,12 +232,21 @@ if question:
         if years:
             docs, metas = retrieve_chunks_for_years(resolved_question, years)
             answer = generate_answer(resolved_question, docs)
-            sources = format_sources(metas)
-            st.session_state.answer_cache[question] = (answer, sources)
         else:
-            answer = CLARIFY_MESSAGE
-            sources = ""
-            st.session_state.pending_question = resolved_question
+            docs, metas, best_distance = hybrid_fallback(resolved_question)
+            answer = generate_answer(resolved_question, docs)
+            if best_distance > 0.9:
+                answer += ("\n\n*This looks like a broad question and I only found loosely "
+                           "related content. Try asking about a specific topic (e.g. roads, "
+                           "education, tax) or year for a more reliable answer.*")
+            else:
+                answer += ("\n\n*I didn't find a specific year in your question, so I searched "
+                           "broadly across all budgets. For a more precise answer, try naming "
+                           "a year, e.g. '2016-17'.*")
+        if resolved_question != question:
+            answer += f"\n\n*(interpreted as: \"{resolved_question}\")*"
+        sources = format_sources(metas)
+        st.session_state.answer_cache[question] = (answer, sources)
 
     st.session_state.messages.append({"role": "assistant", "content": answer, "sources": sources})
     with st.chat_message("assistant"):
